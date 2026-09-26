@@ -2,6 +2,9 @@
 
 Android-to-Android screen mirroring and control built with Jetpack Compose.
 
+See [the architecture document](docs/architecture.md) for module boundaries and protocol flows,
+and [AGENTS.md](AGENTS.md) for repository development rules.
+
 ## Modules
 
 - `app`: Compose controller UI and application lifecycle.
