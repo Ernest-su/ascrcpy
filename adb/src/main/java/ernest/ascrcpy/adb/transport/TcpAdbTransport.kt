@@ -18,7 +18,7 @@ class TcpAdbTransport(
         socket = Socket().apply {
             tcpNoDelay = true
             keepAlive = true
-            connect(InetSocketAddress(host, port), connectTimeoutMillis)
+            connect(InetSocketAddress(host, this@TcpAdbTransport.port), connectTimeoutMillis)
         }
     }
 

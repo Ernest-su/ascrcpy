@@ -55,7 +55,10 @@ internal data class AdbPacket(
             val payload = ByteArray(length)
             if (length > 0) transport.readExactly(payload)
             val actualChecksum = payload.sumOf { it.toUByte().toInt() }
-            if (checksum != actualChecksum) throw AdbProtocolException("Invalid ADB payload checksum")
+            // Since protocol 0x01000001 peers may omit checksums and send zero.
+            if (checksum != 0 && checksum != actualChecksum) {
+                throw AdbProtocolException("Invalid ADB payload checksum")
+            }
             return AdbPacket(command, arg0, arg1, payload)
         }
     }

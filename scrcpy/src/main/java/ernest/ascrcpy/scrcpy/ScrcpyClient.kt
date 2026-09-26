@@ -25,6 +25,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private var videoChannel: AdbChannel? = null
     private var controlChannel: AdbChannel? = null
     private var videoJob: Job? = null
+    private var serverJob: Job? = null
     private var controller: ControlMessageWriter? = null
 
     suspend fun start(server: InputStream, surface: Surface, config: ScrcpyConfig = ScrcpyConfig()) {
@@ -39,16 +40,18 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
                 append("scid=${scid.toString(16).padStart(8, '0')} tunnel_forward=true ")
                 append("audio=false video_codec=h264 max_size=${config.maxSize} ")
                 append("video_bit_rate=${config.videoBitRate} max_fps=${config.maxFps} ")
-                append("send_device_meta=false send_dummy_byte=false cleanup=false ")
-                append(">/dev/null 2>&1 </dev/null &")
+                append("send_device_meta=false send_dummy_byte=false cleanup=false")
             }
-            adb.shell(command)
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            serverJob = scope!!.launch {
+                runCatching { adb.shell(command) }
+                    .onFailure { if (it !is kotlinx.coroutines.CancellationException) mutableState.value = ScrcpyState.Failed(it) }
+            }
             mutableState.value = ScrcpyState.ConnectingStreams
             val socketName = "scrcpy_${scid.toString(16).padStart(8, '0')}"
             videoChannel = openWithRetry("localabstract:$socketName")
             controlChannel = openWithRetry("localabstract:$socketName")
             controller = ControlMessageWriter(checkNotNull(controlChannel))
-            scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             videoJob = scope!!.launch {
                 runCatching {
                     VideoStreamDecoder(checkNotNull(videoChannel), surface) { videoSize ->
@@ -80,6 +83,8 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private fun stopChannels() {
         videoJob?.cancel()
         videoJob = null
+        serverJob?.cancel()
+        serverJob = null
         scope?.cancel()
         scope = null
         videoChannel?.close()
