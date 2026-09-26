@@ -12,7 +12,7 @@ AScrcpy 让一台 Android 设备作为控制端，通过 ADB 连接另一台 And
 - H.264 视频，不启用音频；
 - `MediaCodec` 硬件解码到 `SurfaceView`；
 - 单点、多点触摸和按键控制消息；
-- Compose 连接、诊断、启动、停止及错误状态界面。
+- Compose 连接、诊断、自动启动预览、沉浸式全屏及错误状态界面。
 
 Android 11+ 无线调试配对、mDNS、USB ADB、音频和剪贴板同步尚不属于已实现范围。
 
@@ -49,7 +49,7 @@ app ──► scrcpy ──► adb
 
 - `MainActivity`：Activity 与 Compose 根节点；
 - `MainViewModel`：组合 ADB 与 scrcpy 状态，持有会话生命周期；
-- `MainScreen`：目标地址输入、连接诊断、视频 Surface 和触摸坐标映射；
+- `MainScreen`：目标地址输入、连接诊断、视频 Surface、全屏/刘海区适配、触摸坐标映射和悬浮遥控器；
 - `assets/scrcpy-server-v4.0`：与客户端协议严格匹配的服务端二进制。
 
 `app` 是组合根，只负责调用库接口，不应实现 ADB framing 或 scrcpy 二进制协议。
@@ -188,6 +188,9 @@ remoteY = (localY - contentTop) / scale
 letterbox 区域的事件被忽略。每个 Android pointer id 被保留，并序列化为 scrcpy 32 字节 touch
 message。MOVE 事件会为所有当前 pointer 分别发送消息。
 
+全屏和普通预览都使用 session 上报的实际宽高比约束 `SurfaceView`，在可用区域内按
+fit-center 策略居中显示，多余区域保持黑色，不拉伸或裁剪被控设备画面。
+
 控制消息采用大端序，包含 action、pointer id、远端坐标、远端尺寸、pressure 与 button flags。
 
 ## 7. 状态与所有权
@@ -213,6 +216,16 @@ Idle → InstallingServer → StartingServer → ConnectingStreams → Streaming
 - ViewModel 创建并关闭 `AdbClient`、`ScrcpyClient`；
 - `ScrcpyClient` 拥有 server、video 和 control jobs/channels；
 - stop 时取消 jobs，关闭两个 stream，再由 shell stream 关闭触发 server 退出。
+
+连接成功后 `MainViewModel` 会在视频 Surface 就绪时自动启动 scrcpy。UI 默认进入隐藏系统栏的
+沉浸式预览；悬浮遥控器可整体拖动，靠近屏幕两侧时吸附并收缩为遥控器图标，从边缘拖出后恢复完整面板。
+面板提供方向/确定/返回/Home/菜单、音量加减和红色电源按键；长按收缩后的图标可在全屏预览与普通主界面之间切换。
+视频可延伸到屏幕裁切区，但悬浮控件始终受 safe-drawing insets 约束。
+
+控制端旋转和窗口尺寸变化由 `MainActivity` 原地处理，不能仅因配置变化重建 Activity 并关闭连接。
+Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；`MainViewModel` 只接受当前
+`Surface` 实例的销毁通知，并在 Surface 稳定后再启动镜像，避免旧 Surface 的回调停止新会话。
+`ScrcpyClient` 通过会话代次隔离异步任务，已取消或过期任务的失败不能覆盖当前会话状态。
 
 当前没有前台服务，因此进程被系统回收或 Activity 长时间处于后台时不保证会话持续。
 

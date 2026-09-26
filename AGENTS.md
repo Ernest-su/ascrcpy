@@ -3,6 +3,9 @@
 This file applies to the whole repository. Keep implementation and documentation consistent with
 [`docs/architecture.md`](docs/architecture.md).
 
+All `app` UI and launcher-icon changes must also follow the mandatory WeUI-derived tokens, spacing,
+shape, state, dark-theme, and icon constraints in [`docs/design-system.md`](docs/design-system.md).
+
 ## Project intent
 
 AScrcpy is an Android controller for another Android device. It connects directly to the target

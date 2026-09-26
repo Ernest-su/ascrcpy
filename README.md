@@ -1,9 +1,12 @@
 # AScrcpy
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Android-to-Android screen mirroring and control built with Jetpack Compose.
 
 See [the architecture document](docs/architecture.md) for module boundaries and protocol flows,
-and [AGENTS.md](AGENTS.md) for repository development rules.
+the [visual design system](docs/design-system.md) for mandatory UI constraints, and
+[AGENTS.md](AGENTS.md) for repository development rules.
 
 ## Modules
 
@@ -61,6 +64,10 @@ wireless-debugging pairing and USB transport are extension points, not implement
 - Bundled matching scrcpy-server 4.0.
 - H.264 low-latency decoding to `SurfaceView` with MediaCodec.
 - Single- and multi-pointer control message forwarding.
+- Automatic immersive preview after connection, with display-cutout-safe floating controls.
+- Draggable edge-snapping mini remote for D-pad, OK, Back, Home, Menu, volume, and power keys.
+- Persistent, selectable connection-host history with one-tap deletion.
+- English and Simplified Chinese UI, including Android 13 per-app language selection.
 - Session state, error reporting, rotation/session-size handling, and clean shutdown.
 
 Audio, clipboard synchronization, Android 11 pairing, discovery, and USB transport are planned

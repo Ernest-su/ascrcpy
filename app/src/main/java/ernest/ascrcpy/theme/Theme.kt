@@ -1,50 +1,51 @@
 package ernest.ascrcpy.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-private val DarkColorScheme = darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
+private val LightColorScheme = lightColorScheme(
+  primary = WeChatBrand, onPrimary = Color.White,
+  primaryContainer = Color(0xFFB4ECCE), onPrimaryContainer = Color(0xFF035D2F),
+  secondary = WeChatLink, onSecondary = Color.White,
+  tertiary = WeChatWarning, error = WeChatDanger, onError = Color.White,
+  background = WeChatLightBackground, onBackground = WeChatLightText,
+  surface = WeChatLightSurface, onSurface = WeChatLightText,
+  surfaceVariant = WeChatLightSurfaceSubtle, onSurfaceVariant = WeChatLightTextSecondary,
+  surfaceContainer = WeChatLightSurface, surfaceContainerLow = WeChatLightSurfaceSubtle,
+  outline = Color(0xFFB2B2B2), outlineVariant = WeChatLightDivider,
+)
 
-private val LightColorScheme =
-  lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
+private val DarkColorScheme = darkColorScheme(
+  primary = WeChatBrand, onPrimary = Color.White,
+  primaryContainer = Color(0xFF023A1C), onPrimaryContainer = Color(0xFFB4ECCE),
+  secondary = Color(0xFF7D90A9), onSecondary = Color.White,
+  tertiary = Color(0xFFC87D2F), error = WeChatDanger, onError = Color.White,
+  background = WeChatDarkBackground, onBackground = WeChatDarkText,
+  surface = WeChatDarkSurface, onSurface = WeChatDarkText,
+  surfaceVariant = WeChatDarkSurfaceSubtle, onSurfaceVariant = WeChatDarkTextSecondary,
+  surfaceContainer = WeChatDarkSurface, surfaceContainerLow = WeChatDarkSurfaceSubtle,
+  outline = Color(0xFF595959), outlineVariant = WeChatDarkDivider,
+)
 
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
-  )
+private val WeChatShapes = Shapes(
+  extraSmall = RoundedCornerShape(4.dp), small = RoundedCornerShape(8.dp),
+  medium = RoundedCornerShape(12.dp), large = RoundedCornerShape(16.dp),
+  extraLarge = RoundedCornerShape(20.dp),
+)
 
 @Composable
-fun AScrcpyTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is available on Android 12+
-  dynamicColor: Boolean = true,
-  content: @Composable () -> Unit,
-) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
-    }
-
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+fun AScrcpyTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+  MaterialTheme(
+    colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme,
+    typography = Typography,
+    shapes = WeChatShapes,
+    content = content,
+  )
 }

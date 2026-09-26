@@ -1,0 +1,58 @@
+# AScrcpy 视觉设计规范
+
+本文档是 `app` 模块的强制性视觉约束。界面以微信官方设计团队的 WeUI 语义颜色为基础，
+再按 Android/Compose 交互需求做项目级映射。不复制微信商标、聊天气泡或其他产品特征。
+
+上游依据：
+
+- [Tencent/WeUI](https://github.com/Tencent/weui)：微信官方设计团队维护的基础样式库；
+- [WeUI 颜色变量](https://github.com/Tencent/weui/blob/master/src/style/base/variable/color.less)；
+- [WeUI WXSS 分发颜色表](https://github.com/Tencent/weui-wxss/blob/master/dist/style/base/variable/color.wxss)。
+
+## 颜色令牌
+
+| 语义 | 浅色 | 深色 | 用途 |
+|---|---:|---:|---|
+| Brand | `#07C160` | `#07C160` | 主按钮、连接成功、强调操作 |
+| Brand pressed | `#059A4C` | `#38CD7F` | 响应按压状态 |
+| Danger | `#FA5151` | `#FA5151` | 错误、关机、破坏性操作 |
+| Warning | `#FA9D3B` | `#C87D2F` | 等待、授权和警告 |
+| Link | `#576B95` | `#7D90A9` | 次级链接或信息操作 |
+| BG-0 | `#EDEDED` | `#111111` | 页面背景 |
+| BG-1 | `#F7F7F7` | `#1E1E1E` | 次级容器、输入区 |
+| BG-2 | `#FFFFFF` | `#191919` | 卡片与主内容面 |
+| FG-0 | `#191919` | `#CCCCCC` | 主文字和主图标 |
+| FG-1 | `#737373` | `#808080` | 说明文字与次图标 |
+| Separator | `#E5E5E5` | `#333333` | 边框与分隔线 |
+
+必须通过 `theme/Color.kt` 和 `MaterialTheme.colorScheme` 使用语义色。除视频黑色底、白色遥控图标等
+必要的内容色外，业务 Composable 不得新增硬编码颜色。关机和其他危险操作只用 Danger，
+不得用 Brand 绿。关闭 Android 动态取色，避免壁纸颜色改变产品语义。
+
+## 排版与空间
+
+- 使用系统无衬线字体；正文 `17sp/26sp`，辅助文字 `15sp/22sp`，主标题 `28sp/36sp`。
+- 基础空间网格为 `4dp`；页面与卡片的标准内边距为 `16dp`，紧密图标间距不小于 `8dp`。
+- 普通容器圆角 `8–12dp`，大型浮层最大 `20dp`；仅状态标签和圆形图标使用完全圆角。
+- 任何可点击控件的触控区域目标不小于 `48dp`；紧凑的次级图标最小 `40dp`，但必须保留语义标签。
+
+## 界面与状态
+
+- 主界面使用 BG-0 打底、BG-2 卡片分组，不用大面积品牌绿。
+- 主操作用 Brand 实心按钮；次操作使用边框或 Link 色；同一操作组只保留一个主强调。
+- 预览画面始终使用黑色留边以保持真实比例。悬浮遥控器使用 FG-0 深色高透明度材质、白色图标，
+  电源键使用 Danger，并始终遵守 safe-drawing insets。
+- 浅色和深色模式必须共用相同的语义层级，不得只在单一模式下验证新界面。
+
+## 国际化
+
+- 用户可见文案和无障碍描述必须使用 Android string resources，不得在 Kotlin/Compose 中硬编码。
+- 默认资源 `values/strings.xml` 使用英文，简体中文使用 `values-zh/strings.xml`；新增键名必须同时提供两种语言。
+- 动态值通过 `%1$s` / `%1$d` 等带位置的占位符注入，不拼接可翻译句子；协议名、IP、端口和设备原始返回保持原样。
+- 布局必须允许中英文长度变化，不以固定文字宽度定位；无障碍描述与界面语言保持一致。
+
+## App 图标
+
+图标语义是“一台 Android 设备控制另一台设备”，使用双屏幕、连接信号和方向控制符号。
+主色为 Brand，背景为 BG-1；不使用文字、Android 机器人、微信聊天气泡或第三方商标。
+自适应图标的关键几何必须位于中央安全区，同时提供 legacy 各密度图标与 Android 13 monochrome 资源。

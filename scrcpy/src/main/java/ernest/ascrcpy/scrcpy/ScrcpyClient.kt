@@ -7,6 +7,7 @@ import java.io.Closeable
 import java.io.InputStream
 import kotlin.random.Random
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -27,9 +28,11 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private var videoJob: Job? = null
     private var serverJob: Job? = null
     private var controller: ControlMessageWriter? = null
+    private var sessionGeneration = 0L
 
     suspend fun start(server: InputStream, surface: Surface, config: ScrcpyConfig = ScrcpyConfig()) {
         stop()
+        val generation = ++sessionGeneration
         try {
             mutableState.value = ScrcpyState.InstallingServer
             adb.push(server, SERVER_PATH, 0x1A4)
@@ -45,7 +48,11 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             serverJob = scope!!.launch {
                 runCatching { adb.shell(command) }
-                    .onFailure { if (it !is kotlinx.coroutines.CancellationException) mutableState.value = ScrcpyState.Failed(it) }
+                    .onFailure {
+                        if (generation == sessionGeneration && it !is kotlinx.coroutines.CancellationException) {
+                            mutableState.value = ScrcpyState.Failed(it)
+                        }
+                    }
             }
             mutableState.value = ScrcpyState.ConnectingStreams
             val socketName = "scrcpy_${scid.toString(16).padStart(8, '0')}"
@@ -55,13 +62,23 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             videoJob = scope!!.launch {
                 runCatching {
                     VideoStreamDecoder(checkNotNull(videoChannel), surface) { videoSize ->
-                        mutableState.value = ScrcpyState.Streaming(videoSize)
+                        if (generation == sessionGeneration) {
+                            mutableState.value = ScrcpyState.Streaming(videoSize)
+                        }
                     }.run()
-                }.onFailure { mutableState.value = ScrcpyState.Failed(it) }
+                }.onFailure {
+                    if (generation == sessionGeneration && it !is kotlinx.coroutines.CancellationException) {
+                        mutableState.value = ScrcpyState.Failed(it)
+                    }
+                }
             }
         } catch (error: Throwable) {
-            stopChannels()
-            mutableState.value = ScrcpyState.Failed(error)
+            if (generation == sessionGeneration) {
+                stopChannels()
+                if (error !is CancellationException) {
+                    mutableState.value = ScrcpyState.Failed(error)
+                }
+            }
             throw error
         }
     }
@@ -76,6 +93,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     }
 
     fun stop() {
+        sessionGeneration++
         stopChannels()
         mutableState.value = ScrcpyState.Idle
     }
@@ -100,6 +118,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             try {
                 return adb.open(service)
             } catch (error: Throwable) {
+                if (error is CancellationException) throw error
                 lastError = error
                 delay(100)
             }
