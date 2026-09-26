@@ -1,0 +1,20 @@
+-- Merging decision tree log ---
+manifest
+ADDED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml:2:1-4:12
+INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml:2:1-4:12
+	package
+		INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml
+	xmlns:android
+		ADDED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml:2:11-69
+uses-permission#android.permission.INTERNET
+ADDED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml:3:5-67
+	android:name
+		ADDED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml:3:22-64
+uses-sdk
+INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml
+INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml
+	android:targetSdkVersion
+		INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from /home/ernest/data/projects/ascrcpy/adb/src/main/AndroidManifest.xml
