@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuite name="ernest.ascrcpy.adb.AdbEndpointTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-09-26T01:59:26.505Z" hostname="Ernest-Arch" time="0.013">
-  <properties/>
-  <testcase name="rejectsInvalidPort" classname="ernest.ascrcpy.adb.AdbEndpointTest" time="0.008"/>
-  <testcase name="serialCombinesHostAndPort" classname="ernest.ascrcpy.adb.AdbEndpointTest" time="0.005"/>
-  <system-out><![CDATA[]]></system-out>
-  <system-err><![CDATA[]]></system-err>
-</testsuite>
