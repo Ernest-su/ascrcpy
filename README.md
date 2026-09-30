@@ -74,6 +74,18 @@ Android TV that has no keyboard and no app store.
 - English and Simplified Chinese, including Android 13 per-app language selection.
 - Session state, error reporting, rotation and surface-recreation handling, and clean shutdown.
 
+## Screenshots
+
+The main screen connects over TCP ADB and reports every step of the session. 
+
+![AScrcpy main screen with the ADB device card](screenshots/main.jpg)
+
+Once connected, the preview takes over the screen full screen, with the floating remote for navigation keys: docked to
+an edge as a small icon, or pulled away from the edge into a full panel as shown below.
+
+![A mirrored Android TV home screen with the floating remote opened into a full panel](screenshots/mirror.jpg)
+
+
 ## Requirements
 
 - Android 8.0 (API 26) or newer on the **controller**.
