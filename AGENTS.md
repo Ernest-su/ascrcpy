@@ -55,8 +55,9 @@ The client protocol and bundled server are a matched pair. The current pinned ve
 Never update only one side. A scrcpy upgrade must update the asset, protocol implementation,
 version constant, SHA-256 notice, tests, and architecture documentation in the same change.
 
-The bundled server is GPLv3 software. Preserve its notice and corresponding-source link when
-redistributing it.
+The bundled server is unmodified Apache-2.0 software from the scrcpy project. Preserve its notice and
+corresponding-source link when redistributing it, and keep stating the reuse scope accurately: the
+server binary is reused, the controller side is an independent implementation.
 
 ## Build and test
 

@@ -235,7 +235,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 - 不记录 RSA 私钥或 AUTH token。
 - UI 展示 shell 诊断输出时应避免默认执行包含敏感信息的命令。
 - scrcpy wire protocol 是内部协议，server 和 client 必须锁定同一版本。
-- `scrcpy-server-v4.0` 属于 GPLv3；分发要求见 `THIRD_PARTY_NOTICES.md`。
+- `scrcpy-server-v4.0` 是 scrcpy 官方未修改的 Apache-2.0 二进制；分发要求与复用范围见 `THIRD_PARTY_NOTICES.md`。
 - 当前 TCP ADB 是明文 legacy transport，应该只在可信网络使用；Android 11+ 安全无线配对需要单独实现。
 
 ## 9. 测试策略
@@ -244,7 +244,8 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 |---|---|---|
 | `adb` 单元测试 | endpoint 校验 | packet、AUTH、公钥、stream 分发、sync push |
 | `scrcpy` 单元测试 | 待补充 | frame header、control message、状态转换 |
-| Compose instrumentation | 断开状态与 Connect 操作 | 连接/失败/Streaming 状态、坐标映射 |
+| `app` 单元测试 | 悬浮遥控器边界与展开/收起/贴边/缩放比例运算 | 主题、连接历史筛选 |
+| Compose instrumentation | 断开状态与 Connect 操作、主机历史建议、输入框焦点保持、遥控器拖放与短区域缩放 | 连接/失败/Streaming 状态、坐标映射 |
 | 云设备 E2E | ADB、shell、push、server、1920×1072 streaming | 双设备画面内容、旋转、多点触控、断线重连 |
 
 完整本地验证命令：
