@@ -1,21 +1,86 @@
 # AScrcpy
 
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3-purple.svg)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-2026.03-4285F4.svg)](https://developer.android.com/jetpack/compose)
+
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-Android-to-Android screen mirroring and control built with Jetpack Compose.
+Mirror and control one Android device from another Android device. AScrcpy puts a full scrcpy
+controller on an Android phone or tablet: no PC, no root, nothing installed on the target.
 
-See [the architecture document](docs/architecture.md) for module boundaries and protocol flows,
-the [visual design system](docs/design-system.md) for mandatory UI constraints, and
-[AGENTS.md](AGENTS.md) for repository development rules.
+It connects straight to the target's `adbd`, pushes a matching scrcpy server, decodes the H.264
+stream with `MediaCodec`, and turns touches and key presses into scrcpy control messages. The whole
+controller UI is Jetpack Compose.
 
-## Modules
+---
 
-- `app`: Compose controller UI and application lifecycle.
-- `adb`: reusable ADB host library. Its public API does not expose the TCP implementation.
-- `scrcpy`: scrcpy 4.0 server lifecycle, stream protocol, MediaCodec decoder, and control messages.
+## Acknowledgements — this project stands on scrcpy
 
-All project-owned packages start with `ernest.ascrcpy`. The ADB module namespace is
-`ernest.ascrcpy.adb`.
+**AScrcpy exists because of [scrcpy](https://github.com/Genymobile/scrcpy).**
+
+Romain Vimont (`@rom1v`) and the scrcpy contributors designed and built the protocol, the device
+server, and the whole idea of "mirror an Android device with nothing installed on it". AScrcpy
+reuses that work directly:
+
+- the bundled `app/src/main/assets/scrcpy-server-v4.0` is the **unmodified scrcpy 4.0 server**,
+  byte-identical to the official artifact;
+- the controller speaks the **scrcpy wire protocol**, pinned to a matched client/server version.
+
+Everything else - the ADB host implementation, the stream and control protocol handling, the
+`MediaCodec` decoder, and the entire Compose interface - is an independent implementation written for
+this project. No scrcpy client source code is included.
+
+scrcpy itself is licensed under the Apache License 2.0, so AScrcpy is too. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the exact version, checksum, license text, and
+corresponding source.
+
+If scrcpy is useful to you, please consider supporting it upstream — AScrcpy is downstream of it.
+
+---
+
+## Why Android-to-Android
+
+scrcpy is excellent, but it assumes a computer on the other end. That is the one thing you often do
+not have when the device you want to control is a TV box, a set-top box, an Android-based kiosk, or
+someone else's spare handset.
+
+AScrcpy removes that requirement:
+
+|  | scrcpy | AScrcpy |
+|---|---|---|
+| Controller runs on | Linux, Windows, macOS | Android phone or tablet |
+| Setup | install on a PC | install on a phone |
+| Connection | USB or TCP/IP | TCP/IP to an already-enabled `adbd` |
+| UI toolkit | SDL / native | Jetpack Compose, Material 3, WeUI visual language |
+| Remote navigation | desktop keyboard and mouse | on-screen floating D-pad, back, home, menu, volume, power |
+| Audio, clipboard, HID, recording | yes | not implemented yet |
+
+Two handsets on the same network are enough. It also happens to be the most natural way to control an
+Android TV that has no keyboard and no app store.
+
+## Features
+
+- Direct TCP ADB with a persistent RSA identity and device authorization.
+- Shell execution, sync push, and multiplexed arbitrary ADB services.
+- Bundled, matching scrcpy-server 4.0, started and stopped as part of the session.
+- Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
+- Single- and multi-pointer touch forwarding with pressure and correct coordinate mapping.
+- Automatic immersive preview after connecting, cutout- and notch-aware.
+- Draggable floating remote that snaps to an edge; drag it away from the edge and it opens into a
+  full panel. One layout, scaled to fit whatever space is available, so it stays usable in landscape.
+- Long-press the docked icon to switch between the full-screen preview and the main screen.
+- Persistent, searchable connection-host history with one-tap deletion.
+- English and Simplified Chinese, including Android 13 per-app language selection.
+- Session state, error reporting, rotation and surface-recreation handling, and clean shutdown.
+
+## Requirements
+
+- Android 8.0 (API 26) or newer on the **controller**.
+- A target device with **USB debugging already enabled and this controller authorized**, reachable over
+  TCP. On most devices that means `adb tcpip 5555` once, or a TV box with wireless debugging turned on.
+- Both devices on a network the two of them can reach. The current transport is a plaintext legacy
+  ADB connection: use it on a network you trust.
 
 ## Build
 
@@ -23,16 +88,51 @@ All project-owned packages start with `ernest.ascrcpy`. The ADB module namespace
 ./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ```
 
-Install with the Android CLI:
+Requires JDK 17. Install on a connected device with the Android CLI:
 
 ```shell
 android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
   --apks=app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Run the instrumented tests on a connected device:
+
+```shell
+./gradlew :app:connectedDebugAndroidTest
+```
+
+## Usage
+
+1. Install AScrcpy on the controller phone.
+2. On the target device, enable USB debugging and connect it over TCP (`adb tcpip 5555`), or enable
+   wireless debugging and note its address and port.
+3. Enter the address in **IP address or host**, set the port, and tap **Connect**. The app remembers
+   the host and offers it as a suggestion next time.
+4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
+   full screen automatically.
+5. Use the preview for touch input and the floating remote for navigation keys. Drag the remote
+   anywhere; drop it against a left or right edge to collapse it back to a small icon.
+
+## Modules
+
+| Module | Contents |
+|---|---|
+| `app` | Compose controller UI, Android lifecycle, assets, dependency wiring |
+| `adb` | reusable ADB host library; its public API never exposes the TCP implementation |
+| `scrcpy` | scrcpy server lifecycle, stream protocol, `MediaCodec` decoder, control messages |
+
+Allowed dependency direction is `app -> scrcpy -> adb`, plus `app -> adb` for direct connection and
+diagnostics. All project-owned packages start with `ernest.ascrcpy`; the ADB namespace is
+`ernest.ascrcpy.adb`.
+
+Further reading: [docs/architecture.md](docs/architecture.md) for module boundaries and protocol
+flows, [docs/design-system.md](docs/design-system.md) for the mandatory UI constraints, and
+[AGENTS.md](AGENTS.md) for repository development rules.
+
 ## Using the ADB module
 
-Add the module dependency:
+The `adb` module is usable on its own - for tooling, diagnostics, or any Android app that needs a
+dependency-light ADB host implementation.
 
 ```kotlin
 dependencies {
@@ -50,41 +150,49 @@ client.push(inputStream, "/data/local/tmp/tool.jar")
 val channel = client.open("localabstract:my_service")
 ```
 
-`AdbClient`, `AdbChannel`, `AdbKeyProvider`, `AdbTransport`, and their factories are interfaces.
-A future USB implementation can supply another `AdbTransportFactory`; a third-party ADB library
-can implement `AdbClient` directly. Neither option requires changes in the app or scrcpy module.
+`AdbClient`, `AdbChannel`, `AdbKeyProvider`, `AdbTransport`, and their factories are all interfaces.
+A USB implementation can supply another `AdbTransportFactory`, and a third-party ADB library can
+implement `AdbClient` directly; neither requires a change in the `app` or `scrcpy` modules.
 
-The included implementation connects directly to an already-enabled TCP adbd. Android 11+
-wireless-debugging pairing and USB transport are extension points, not implemented yet.
+## Roadmap
 
-## Current feature set
+Not implemented yet, and all of them are designed to fit the existing module boundaries:
 
-- Direct TCP ADB with persistent RSA identity and device authorization.
-- Shell, sync push, and multiplexed arbitrary ADB services.
-- Bundled matching scrcpy-server 4.0.
-- H.264 low-latency decoding to `SurfaceView` with MediaCodec.
-- Single- and multi-pointer control message forwarding.
-- Automatic immersive preview after connection, with display-cutout-safe floating controls.
-- Draggable edge-snapping mini remote for D-pad, OK, Back, Home, Menu, volume, and power keys.
-- Persistent, selectable connection-host history with one-tap deletion.
-- English and Simplified Chinese UI, including Android 13 per-app language selection.
-- Session state, error reporting, rotation/session-size handling, and clean shutdown.
+- Android 11+ TLS wireless-debugging pairing and mDNS device discovery.
+- USB host transport implementing `AdbTransport`.
+- Audio forwarding and `AudioTrack` playback.
+- Clipboard and device-message receive loop.
+- Keyboard, gamepad, and richer control messages.
+- Foreground service so a session survives UI recreation.
 
-Audio, clipboard synchronization, Android 11 pairing, discovery, and USB transport are planned
-extensions.
+## Contributing
 
-## Test device
+Issues and pull requests are welcome, especially for the extension points above - each one is scoped
+to a single module and behind an existing interface.
 
-Validated on a connected `KONKA Android TV KKAML966D5`, Android 14:
+Before opening a pull request, please run:
 
-- application installation and Compose launch;
-- direct ADB connection and authorization;
-- shell execution and server upload;
-- scrcpy-server startup;
-- H.264 encode/decode pipeline at `1920 × 1072`;
-- video and control channel establishment.
+```shell
+./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+./gradlew :app:connectedDebugAndroidTest    # with a device connected
+```
 
-## Third-party software
+Please read [AGENTS.md](AGENTS.md) first: it documents the naming conventions, module boundaries,
+protocol rules, and change discipline this repository expects.
 
-The binary in `app/src/main/assets/scrcpy-server-v4.0` is the unmodified scrcpy 4.0 server.
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+## Verified devices
+
+- **Controller**: OnePlus `PJE110`, Android 16 - install, launch, and the Compose instrumented suite
+  including the host field and floating-remote behaviour.
+- **Target**: `KONKA Android TV KKAML966D5`, Android 14 - ADB connect and authorize, shell, server
+  upload and start, and the H.264 encode/decode pipeline at `1920 × 1072`.
+
+Testing a device against itself can produce a black or recursive preview even when the pipeline is
+healthy, so prefer two devices when validating frame contents and touch accuracy.
+
+## License
+
+Copyright 2026 Ernest-su and AScrcpy contributors.
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the bundled scrcpy server.
