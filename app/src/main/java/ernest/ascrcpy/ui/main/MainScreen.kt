@@ -8,8 +8,10 @@ import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
@@ -27,17 +29,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -59,6 +65,7 @@ import ernest.ascrcpy.theme.AScrcpyTheme
 import ernest.ascrcpy.theme.WeChatBrand
 import ernest.ascrcpy.theme.WeChatDanger
 import ernest.ascrcpy.theme.WeChatOverlayStrong
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -327,17 +334,21 @@ private fun FloatingRemote(
     val areaWidth = with(density) { maxWidth.toPx() }
     val areaHeight = with(density) { maxHeight.toPx() }
     val icon = RemoteBounds(areaWidth, areaHeight,
-      with(density) { RemoteIconSize.toPx() }, with(density) { RemoteIconSize.toPx() })
+      with(density) { RemoteLayout.IconSize.toPx() }, with(density) { RemoteLayout.IconSize.toPx() })
+    val panelHeightPx = remotePanelHeight(density)
+    val scale = remoteScale(areaHeight, panelHeightPx)
+    val metrics = remember(scale) { RemoteLayout.metrics(scale) }
     val panel = RemoteBounds(areaWidth, areaHeight,
-      with(density) { RemotePanelWidth.toPx() }, with(density) { RemotePanelHeight.toPx() })
+      with(density) { metrics.width.toPx() }, with(density) { metrics.height.toPx() })
     val bounds = if (state.collapsed) icon else panel
-    val edgeThreshold = with(density) { RemoteEdgeThreshold.toPx() }
+    val edgeThreshold = with(density) { RemoteLayout.EdgeThreshold.toPx() }
 
     // The remote is remembered by the point at its centre, so growing or shrinking the panel never
     // teleports it to a screen edge; an untouched remote still docks to the right-hand side.
     val restingCenter = if (state.center.x.isNaN()) Offset(icon.maxX + icon.itemWidth / 2f, areaHeight / 2f)
       else state.center
     var dragged by remember { mutableStateOf<Offset?>(null) }
+    var dragOrigin by remember { mutableStateOf(Offset.Zero) }
     val actual = dragged ?: bounds.topLeft(restingCenter)
 
     // The drag gesture outlives size changes, so it reads the live geometry instead of capturing
@@ -351,10 +362,11 @@ private fun FloatingRemote(
 
     val dragModifier = Modifier
       .offset { IntOffset(actual.x.roundToInt(), actual.y.roundToInt()) }
-      .size(if (state.collapsed) RemoteIconSize else RemotePanelWidth, if (state.collapsed) RemoteIconSize else RemotePanelHeight)
+      .size(if (state.collapsed) RemoteLayout.IconSize else metrics.width,
+        if (state.collapsed) RemoteLayout.IconSize else metrics.height)
       .pointerInput(Unit) {
         detectDragGestures(
-          onDragStart = { dragged = liveTopLeft },
+          onDragStart = { dragOrigin = liveTopLeft; dragged = liveTopLeft },
           onDrag = { change, drag ->
             change.consume()
             val anchor = dragged ?: liveTopLeft
@@ -362,7 +374,7 @@ private fun FloatingRemote(
           },
           onDragEnd = {
             val dropped = dragged ?: liveTopLeft
-            state.apply(settleRemote(dropped, liveBounds, liveIcon, livePanel, liveThreshold, liveCollapsed))
+            state.apply(settleRemote(dropped, dragOrigin.x, liveBounds, liveIcon, livePanel, liveThreshold, liveCollapsed))
             dragged = null
           },
           onDragCancel = { dragged = null },
@@ -378,15 +390,103 @@ private fun FloatingRemote(
         RemoteGlyph(RemoteIcon.RemoteControl, Color.White.copy(.92f), Modifier.size(23.dp))
       }
     } else {
-      MiniRemote(onKey, dragModifier)
+      MiniRemote(onKey, metrics, dragModifier)
     }
   }
 }
 
-private val RemoteIconSize = 40.dp
-private val RemotePanelWidth = 204.dp
-private val RemotePanelHeight = 348.dp
-private val RemoteEdgeThreshold = 24.dp
+/**
+ * Sizes of the floating remote at one scale.
+ *
+ * There is a single layout: the portrait column of [MiniRemote]. A scale below one shrinks every
+ * token proportionally, so the very same arrangement also fits a short area such as landscape instead
+ * of needing a layout of its own. [width] and [height] are derived from [contentHeight] and
+ * [contentWidth] so the fixed panel box can never clip the column at any scale.
+ */
+internal data class RemoteMetrics(
+  val scale: Float,
+  val width: Dp,
+  val height: Dp,
+  val padding: Dp,
+  val keySpacing: Dp,
+  val navSpacing: Dp,
+  val keySize: Dp,
+  val keyIconSize: Dp,
+  val powerSize: Dp,
+  val powerIconSize: Dp,
+  val volumeSize: Dp,
+  val volumeIconSize: Dp,
+) {
+  val contentHeight: Dp get() = padding * 2 + powerSize + keySize * 4 + volumeSize + keySpacing * 7
+  val contentWidth: Dp get() = padding * 2 + keySize * 3 + navSpacing * 2
+}
+
+internal object RemoteLayout {
+  /** Full-size reference metrics; [metrics] derives every other scale from these. */
+  val Padding = 12.dp
+  val KeySpacing = 4.dp
+  val NavSpacing = 8.dp
+  val KeySize = 52.dp
+  val KeyIconSize = 24.dp
+  val PowerSize = 42.dp
+  val PowerIconSize = 21.dp
+  val VolumeSize = 44.dp
+  val VolumeIconSize = 19.dp
+
+  /** The docked icon and the docking gesture keep their size at every scale. */
+  val IconSize = 40.dp
+  val EdgeThreshold = 24.dp
+  val IconTint = Color.White.copy(.94f)
+
+  /**
+   * Share of the available height a shrunk panel may take. The remainder is the room left to drag it,
+   * so a panel can never grow to the height that would pin it to the top edge.
+   */
+  const val UsableHeight = 0.92f
+  const val MaxScale = 1f
+
+  /** Frame left around the column so the rounded background is not flush with the keys. */
+  private val WidthSlack = 8.dp
+  private val HeightSlack = 2.dp
+
+  fun metrics(scale: Float): RemoteMetrics {
+    fun Dp.scaled() = (value * scale).roundToInt().dp
+    val column = RemoteMetrics(
+      scale = scale,
+      width = 0.dp,
+      height = 0.dp,
+      padding = Padding.scaled(),
+      keySpacing = KeySpacing.scaled(),
+      navSpacing = NavSpacing.scaled(),
+      keySize = KeySize.scaled(),
+      keyIconSize = KeyIconSize.scaled(),
+      powerSize = PowerSize.scaled(),
+      powerIconSize = PowerIconSize.scaled(),
+      volumeSize = VolumeSize.scaled(),
+      volumeIconSize = VolumeIconSize.scaled(),
+    )
+    return column.copy(width = column.contentWidth + WidthSlack, height = column.contentHeight + HeightSlack)
+  }
+}
+
+/**
+ * Scale that makes the panel fit [areaHeight] pixels without needing a different layout.
+ *
+ * There is deliberately no lower bound: clamping the scale upwards is what would make the panel
+ * taller than the area again and collapse its vertical drag range to nothing. Keys are already only
+ * 42-52dp at full size, so a short area trades a little key size for a remote that still fits and
+ * still moves.
+ */
+internal fun remoteScale(areaHeight: Float, panelHeight: Float): Float = when {
+  areaHeight <= 0f || panelHeight <= 0f -> RemoteLayout.MaxScale
+  else -> (areaHeight * RemoteLayout.UsableHeight / panelHeight).coerceAtMost(RemoteLayout.MaxScale)
+}
+
+/** Height of the full-size panel in pixels, the reference the scale is computed against. */
+internal fun remotePanelHeight(density: Density): Float = with(density) {
+  RemoteLayout.metrics(RemoteLayout.MaxScale).height.toPx()
+}
+
 
 /**
  * Pixel-space area the floating remote may occupy together with the size of the item inside it.
@@ -431,9 +531,16 @@ internal fun dockRemote(dropped: Offset, icon: RemoteBounds, nearLeft: Boolean, 
 internal fun keepRemote(dropped: Offset, bounds: RemoteBounds, collapsed: Boolean): RemotePlacement =
   RemotePlacement(collapsed, bounds.centerOf(bounds.clamp(dropped.x, dropped.y)))
 
-/** Resolves the resting placement for a drag that ended on [dropped]. */
+/**
+ * Resolves the resting placement for a drag that ended on [dropped] having started at [dragStartX].
+ *
+ * Docking needs deliberate horizontal intent. A panel that merely sits flush against an edge because
+ * it is wider than the space left next to the icon there - which is common in landscape - must not
+ * collapse when the user only drags it vertically.
+ */
 internal fun settleRemote(
   dropped: Offset,
+  dragStartX: Float,
   bounds: RemoteBounds,
   icon: RemoteBounds,
   panel: RemoteBounds,
@@ -442,9 +549,10 @@ internal fun settleRemote(
 ): RemotePlacement {
   val nearLeft = dropped.x <= edgeThreshold
   val nearRight = dropped.x >= bounds.maxX - edgeThreshold
+  val pushedToEdge = abs(dropped.x - dragStartX) >= edgeThreshold
   return when {
     collapsed && !nearLeft && !nearRight -> expandRemote(dropped, icon, panel)
-    !collapsed && (nearLeft || nearRight) -> dockRemote(dropped, icon, nearLeft, nearRight)
+    !collapsed && pushedToEdge && (nearLeft || nearRight) -> dockRemote(dropped, icon, nearLeft, nearRight)
     else -> keepRemote(dropped, bounds, collapsed)
   }
 }
@@ -471,43 +579,73 @@ private val FloatingRemoteStateSaver = listSaver<FloatingRemoteState, Any>(
   restore = { FloatingRemoteState(it[0] as Boolean, Offset(it[1] as Float, it[2] as Float)) },
 )
 
+/**
+ * The floating remote: one portrait column of keys, rendered at [metrics] scale.
+ *
+ * Landscape and other short areas pass a smaller scale rather than a different arrangement, so the
+ * remote always looks and behaves the same and only its proportions shrink to fit.
+ */
 @Composable
-private fun MiniRemote(onKey: (Int) -> Unit, modifier: Modifier = Modifier) {
-  Column(modifier.background(WeChatOverlayStrong, RoundedCornerShape(20.dp)).padding(12.dp),
-    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+private fun MiniRemote(onKey: (Int) -> Unit, metrics: RemoteMetrics, modifier: Modifier = Modifier) {
+  Column(modifier.background(WeChatOverlayStrong, RoundedCornerShape(20.dp)).padding(metrics.padding),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(metrics.keySpacing)) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-      RemoteButton(RemoteIcon.Power, stringResource(R.string.power), buttonSize = 42.dp, iconSize = 21.dp, tint = WeChatDanger) {
-        onKey(KeyEvent.KEYCODE_POWER)
-      }
+      RemoteKey(RemoteIcon.Power, R.string.power, KeyEvent.KEYCODE_POWER, onKey, metrics,
+        buttonSize = metrics.powerSize, iconSize = metrics.powerIconSize, tint = WeChatDanger)
     }
-    RemoteButton(RemoteIcon.Up, stringResource(R.string.direction_up)) { onKey(KeyEvent.KEYCODE_DPAD_UP) }
+    RemoteKey(RemoteIcon.Up, R.string.direction_up, KeyEvent.KEYCODE_DPAD_UP, onKey, metrics)
     Row(verticalAlignment = Alignment.CenterVertically) {
-      RemoteButton(RemoteIcon.Left, stringResource(R.string.direction_left)) { onKey(KeyEvent.KEYCODE_DPAD_LEFT) }
-      RemoteButton(RemoteIcon.Confirm, stringResource(R.string.confirm)) { onKey(KeyEvent.KEYCODE_DPAD_CENTER) }
-      RemoteButton(RemoteIcon.Right, stringResource(R.string.direction_right)) { onKey(KeyEvent.KEYCODE_DPAD_RIGHT) }
+      RemoteKey(RemoteIcon.Left, R.string.direction_left, KeyEvent.KEYCODE_DPAD_LEFT, onKey, metrics)
+      RemoteKey(RemoteIcon.Confirm, R.string.confirm, KeyEvent.KEYCODE_DPAD_CENTER, onKey, metrics)
+      RemoteKey(RemoteIcon.Right, R.string.direction_right, KeyEvent.KEYCODE_DPAD_RIGHT, onKey, metrics)
     }
-    RemoteButton(RemoteIcon.Down, stringResource(R.string.direction_down)) { onKey(KeyEvent.KEYCODE_DPAD_DOWN) }
-    Spacer(Modifier.height(4.dp))
+    RemoteKey(RemoteIcon.Down, R.string.direction_down, KeyEvent.KEYCODE_DPAD_DOWN, onKey, metrics)
+    Spacer(Modifier.height(metrics.keySpacing))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-      RemoteButton(RemoteIcon.VolumeDown, stringResource(R.string.volume_down), buttonSize = 44.dp, iconSize = 19.dp) { onKey(KeyEvent.KEYCODE_VOLUME_DOWN) }
-      Spacer(Modifier.size(44.dp))
-      RemoteButton(RemoteIcon.VolumeUp, stringResource(R.string.volume_up), buttonSize = 44.dp, iconSize = 19.dp) { onKey(KeyEvent.KEYCODE_VOLUME_UP) }
+      RemoteKey(RemoteIcon.VolumeDown, R.string.volume_down, KeyEvent.KEYCODE_VOLUME_DOWN, onKey, metrics,
+        buttonSize = metrics.volumeSize, iconSize = metrics.volumeIconSize)
+      Spacer(Modifier.size(metrics.volumeSize))
+      RemoteKey(RemoteIcon.VolumeUp, R.string.volume_up, KeyEvent.KEYCODE_VOLUME_UP, onKey, metrics,
+        buttonSize = metrics.volumeSize, iconSize = metrics.volumeIconSize)
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      RemoteButton(RemoteIcon.Back, stringResource(R.string.back)) { onKey(KeyEvent.KEYCODE_BACK) }
-      RemoteButton(RemoteIcon.Home, stringResource(R.string.home)) { onKey(KeyEvent.KEYCODE_HOME) }
-      RemoteButton(RemoteIcon.Menu, stringResource(R.string.menu)) { onKey(KeyEvent.KEYCODE_MENU) }
+    Row(horizontalArrangement = Arrangement.spacedBy(metrics.navSpacing)) {
+      RemoteKey(RemoteIcon.Back, R.string.back, KeyEvent.KEYCODE_BACK, onKey, metrics)
+      RemoteKey(RemoteIcon.Home, R.string.home, KeyEvent.KEYCODE_HOME, onKey, metrics)
+      RemoteKey(RemoteIcon.Menu, R.string.menu, KeyEvent.KEYCODE_MENU, onKey, metrics)
     }
   }
 }
 
 private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Menu, Power, VolumeDown, VolumeUp, RemoteControl }
 
+/** A remote key wired to a single Android key code, sized from [metrics]. */
 @Composable
-private fun RemoteButton(icon: RemoteIcon, description: String, buttonSize: androidx.compose.ui.unit.Dp = 52.dp,
-  iconSize: androidx.compose.ui.unit.Dp = 24.dp, tint: Color = Color.White.copy(.94f), onClick: () -> Unit) {
-  IconButton(onClick, Modifier.size(buttonSize).background(Color.White.copy(.11f), CircleShape)
-    .semantics { contentDescription = description }) {
+private fun RemoteKey(
+  icon: RemoteIcon,
+  @StringRes labelRes: Int,
+  keyCode: Int,
+  onKey: (Int) -> Unit,
+  metrics: RemoteMetrics,
+  buttonSize: Dp = metrics.keySize,
+  iconSize: Dp = metrics.keyIconSize,
+  tint: Color = RemoteLayout.IconTint,
+) {
+  RemoteButton(icon, stringResource(labelRes), buttonSize, iconSize, tint) { onKey(keyCode) }
+}
+
+@Composable
+private fun RemoteButton(icon: RemoteIcon, description: String, buttonSize: Dp = RemoteLayout.KeySize,
+  iconSize: Dp = RemoteLayout.KeyIconSize, tint: Color = RemoteLayout.IconTint, onClick: () -> Unit) {
+  // A plain clickable Box rather than IconButton: IconButton enforces a 48dp minimum touch target on
+  // top of whatever size it is handed, which shrinks its reported layout box while still drawing the
+  // larger circle. The panel is sized from these metrics, so a key must be exactly what it claims.
+  Box(
+    modifier = Modifier.size(buttonSize).clip(CircleShape).background(Color.White.copy(.11f))
+      .clickable(role = Role.Button, onClick = onClick)
+      .semantics { contentDescription = description },
+    contentAlignment = Alignment.Center,
+  ) {
     RemoteGlyph(icon, tint, Modifier.size(iconSize))
   }
 }
