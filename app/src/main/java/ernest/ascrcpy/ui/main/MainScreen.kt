@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -37,8 +39,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -80,19 +88,20 @@ internal fun MainScreen(
   modifier: Modifier = Modifier,
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
+  val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
   ImmersiveMode(state.connected && fullscreen)
   val videoSize = (state.scrcpyState as? ScrcpyState.Streaming)?.videoSize
 
   if (state.connected && fullscreen) {
     Box(modifier.fillMaxSize().background(Color.Black)) {
       AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
-      FloatingRemote(onKey, { fullscreen = false }, Modifier.fillMaxSize().safeDrawingPadding())
+      FloatingRemote(onKey, { fullscreen = false }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
       onProbe, onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier)
     if (state.connected) {
-      FloatingRemote(onKey, { fullscreen = true }, Modifier.fillMaxSize().safeDrawingPadding())
+      FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
   }
 }
@@ -203,27 +212,68 @@ private fun HostHistoryField(
       singleLine = true,
       enabled = !state.busy && !state.connected,
     )
-    DropdownMenu(
-      expanded = focused && !dismissed && candidates.isNotEmpty() && !state.connected,
-      onDismissRequest = { dismissed = true },
-      modifier = Modifier.widthIn(min = 280.dp),
-    ) {
-      candidates.forEach { host ->
-        val deleteDescription = stringResource(R.string.delete_host, host)
-        DropdownMenuItem(
-          text = { Text(host) },
-          onClick = { onHostChange(host); dismissed = true },
-          trailingIcon = {
-            IconButton(
-              onClick = { onDeleteHost(host) },
-              modifier = Modifier.size(40.dp).semantics { contentDescription = deleteDescription },
-            ) {
-              DeleteIcon()
-            }
-          },
-        )
+    if (focused && !dismissed && candidates.isNotEmpty() && !state.connected) {
+      HostSuggestions(candidates, onSelect = { onHostChange(it); dismissed = true },
+        onDeleteHost = onDeleteHost, onDismissRequest = { dismissed = true })
+    }
+  }
+}
+
+/**
+ * Host history suggestions anchored under the host field.
+ *
+ * The menu lives in a deliberately non-focusable popup. A focusable popup takes window focus away
+ * from the activity, so the host field loses focus and the IME is dismissed every time the filtered
+ * suggestion list re-renders while the user is typing or deleting characters. The list still closes
+ * when the field loses focus or when a suggestion is picked.
+ */
+@Composable
+private fun HostSuggestions(
+  candidates: List<String>,
+  onSelect: (String) -> Unit,
+  onDeleteHost: (String) -> Unit,
+  onDismissRequest: () -> Unit,
+) {
+  val gap = with(LocalDensity.current) { 4.dp.roundToPx() }
+  Popup(
+    onDismissRequest = onDismissRequest,
+    popupPositionProvider = remember(gap) { BelowAnchorPositionProvider(gap) },
+    properties = PopupProperties(focusable = false, dismissOnBackPress = false, dismissOnClickOutside = true),
+  ) {
+    Surface(shape = RoundedCornerShape(12.dp), tonalElevation = 3.dp, shadowElevation = 3.dp,
+      modifier = Modifier.widthIn(min = 280.dp)) {
+      Column(Modifier.padding(vertical = 4.dp)) {
+        candidates.forEach { host ->
+          val deleteDescription = stringResource(R.string.delete_host, host)
+          DropdownMenuItem(
+            text = { Text(host) },
+            onClick = { onSelect(host) },
+            trailingIcon = {
+              IconButton(
+                onClick = { onDeleteHost(host) },
+                modifier = Modifier.size(40.dp).semantics { contentDescription = deleteDescription },
+              ) {
+                DeleteIcon()
+              }
+            },
+          )
+        }
       }
     }
+  }
+}
+
+/** Places the suggestion popup directly below its anchor and keeps it inside the window. */
+private class BelowAnchorPositionProvider(private val gap: Int) : PopupPositionProvider {
+  override fun calculatePosition(
+    anchorBounds: IntRect,
+    windowSize: IntSize,
+    layoutDirection: LayoutDirection,
+    popupContentSize: IntSize,
+  ): IntOffset {
+    val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+    val maxY = (windowSize.height - popupContentSize.height).coerceAtLeast(0)
+    return IntOffset(anchorBounds.left.coerceIn(0, maxX), (anchorBounds.bottom + gap).coerceIn(0, maxY))
   }
 }
 
@@ -266,63 +316,65 @@ private fun Context.findActivity(): Activity? = when (this) {
 }
 
 @Composable
-private fun FloatingRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, modifier: Modifier = Modifier) {
+private fun FloatingRemote(
+  onKey: (Int) -> Unit,
+  onToggleFullscreen: () -> Unit,
+  state: FloatingRemoteState,
+  modifier: Modifier = Modifier,
+) {
   BoxWithConstraints(modifier) {
     val density = LocalDensity.current
-    var collapsed by remember { mutableStateOf(true) }
-    var position by remember { mutableStateOf(Offset(Float.NaN, Float.NaN)) }
-    val itemWidth = if (collapsed) 40.dp else 204.dp
-    val itemHeight = if (collapsed) 40.dp else 348.dp
-    val itemWidthPx = with(density) { itemWidth.toPx() }
-    val itemHeightPx = with(density) { itemHeight.toPx() }
-    val widthPx = with(density) { maxWidth.toPx() }
-    val heightPx = with(density) { maxHeight.toPx() }
-    val maxX = (widthPx - itemWidthPx).coerceAtLeast(0f)
-    val maxY = (heightPx - itemHeightPx).coerceAtLeast(0f)
-    val actual = Offset(if (position.x.isNaN()) maxX else position.x.coerceIn(0f, maxX),
-      if (position.y.isNaN()) maxY / 2f else position.y.coerceIn(0f, maxY))
+    val areaWidth = with(density) { maxWidth.toPx() }
+    val areaHeight = with(density) { maxHeight.toPx() }
+    val icon = RemoteBounds(areaWidth, areaHeight,
+      with(density) { RemoteIconSize.toPx() }, with(density) { RemoteIconSize.toPx() })
+    val panel = RemoteBounds(areaWidth, areaHeight,
+      with(density) { RemotePanelWidth.toPx() }, with(density) { RemotePanelHeight.toPx() })
+    val bounds = if (state.collapsed) icon else panel
+    val edgeThreshold = with(density) { RemoteEdgeThreshold.toPx() }
 
-    val dragModifier = Modifier.offset { IntOffset(actual.x.roundToInt(), actual.y.roundToInt()) }
-      .size(itemWidth, itemHeight)
-      .pointerInput(collapsed, widthPx, heightPx) {
+    // The remote is remembered by the point at its centre, so growing or shrinking the panel never
+    // teleports it to a screen edge; an untouched remote still docks to the right-hand side.
+    val restingCenter = if (state.center.x.isNaN()) Offset(icon.maxX + icon.itemWidth / 2f, areaHeight / 2f)
+      else state.center
+    var dragged by remember { mutableStateOf<Offset?>(null) }
+    val actual = dragged ?: bounds.topLeft(restingCenter)
+
+    // The drag gesture outlives size changes, so it reads the live geometry instead of capturing
+    // the values that were current when the gesture started.
+    val liveTopLeft by rememberUpdatedState(actual)
+    val liveBounds by rememberUpdatedState(bounds)
+    val liveIcon by rememberUpdatedState(icon)
+    val livePanel by rememberUpdatedState(panel)
+    val liveThreshold by rememberUpdatedState(edgeThreshold)
+    val liveCollapsed by rememberUpdatedState(state.collapsed)
+
+    val dragModifier = Modifier
+      .offset { IntOffset(actual.x.roundToInt(), actual.y.roundToInt()) }
+      .size(if (state.collapsed) RemoteIconSize else RemotePanelWidth, if (state.collapsed) RemoteIconSize else RemotePanelHeight)
+      .pointerInput(Unit) {
         detectDragGestures(
-          onDragStart = { position = actual },
-          onDragEnd = {
-            val edgeThreshold = with(density) { 24.dp.toPx() }
-            val nearLeft = position.x <= edgeThreshold
-            val nearRight = position.x >= maxX - edgeThreshold
-            if (!collapsed && (nearLeft || nearRight)) {
-              val iconSize = with(density) { 40.dp.toPx() }
-              position = Offset(if (nearLeft) 0f else widthPx - iconSize,
-                (position.y + itemHeightPx / 2f - iconSize / 2f).coerceIn(0f, heightPx - iconSize))
-              collapsed = true
-            } else if (collapsed && !nearLeft && !nearRight) {
-              val panelWidth = with(density) { 204.dp.toPx() }
-              val panelHeight = with(density) { 348.dp.toPx() }
-              position = Offset((position.x + itemWidthPx / 2f - panelWidth / 2f).coerceIn(0f, (widthPx - panelWidth).coerceAtLeast(0f)),
-                (position.y + itemHeightPx / 2f - panelHeight / 2f).coerceIn(0f, (heightPx - panelHeight).coerceAtLeast(0f)))
-              collapsed = false
-            } else if (collapsed) {
-              position = Offset(if (nearLeft) 0f else widthPx - itemWidthPx, position.y)
-            }
+          onDragStart = { dragged = liveTopLeft },
+          onDrag = { change, drag ->
+            change.consume()
+            val anchor = dragged ?: liveTopLeft
+            dragged = liveBounds.clamp(anchor.x + drag.x, anchor.y + drag.y)
           },
-        ) { change, drag ->
-          change.consume()
-          position = Offset((position.x + drag.x).coerceIn(0f, maxX), (position.y + drag.y).coerceIn(0f, maxY))
-        }
+          onDragEnd = {
+            val dropped = dragged ?: liveTopLeft
+            state.apply(settleRemote(dropped, liveBounds, liveIcon, livePanel, liveThreshold, liveCollapsed))
+            dragged = null
+          },
+          onDragCancel = { dragged = null },
+        )
       }
 
-    if (collapsed) {
+    if (state.collapsed) {
       val remoteDescription = stringResource(R.string.floating_remote_control)
       Box(dragModifier.background(WeChatOverlayStrong, CircleShape)
         .semantics { contentDescription = remoteDescription }
-        .combinedClickable(onClick = {
-          val panelWidth = with(density) { 204.dp.toPx() }
-          val panelHeight = with(density) { 348.dp.toPx() }
-          position = Offset((actual.x + itemWidthPx / 2f - panelWidth / 2f).coerceIn(0f, (widthPx - panelWidth).coerceAtLeast(0f)),
-            (actual.y + itemHeightPx / 2f - panelHeight / 2f).coerceIn(0f, (heightPx - panelHeight).coerceAtLeast(0f)))
-          collapsed = false
-        }, onLongClick = onToggleFullscreen), contentAlignment = Alignment.Center) {
+        .combinedClickable(onClick = { state.apply(expandRemote(actual, icon, panel)) },
+          onLongClick = onToggleFullscreen), contentAlignment = Alignment.Center) {
         RemoteGlyph(RemoteIcon.RemoteControl, Color.White.copy(.92f), Modifier.size(23.dp))
       }
     } else {
@@ -330,6 +382,94 @@ private fun FloatingRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit,
     }
   }
 }
+
+private val RemoteIconSize = 40.dp
+private val RemotePanelWidth = 204.dp
+private val RemotePanelHeight = 348.dp
+private val RemoteEdgeThreshold = 24.dp
+
+/**
+ * Pixel-space area the floating remote may occupy together with the size of the item inside it.
+ *
+ * Both the docked icon and the expanded panel are clamped against their own size, so a placement
+ * computed for one size never silently gets re-clamped by the other.
+ */
+internal data class RemoteBounds(val width: Float, val height: Float, val itemWidth: Float, val itemHeight: Float) {
+  val maxX: Float get() = (width - itemWidth).coerceAtLeast(0f)
+  val maxY: Float get() = (height - itemHeight).coerceAtLeast(0f)
+
+  fun clamp(x: Float, y: Float): Offset = Offset(x.coerceIn(0f, maxX), y.coerceIn(0f, maxY))
+
+  /** Top-left corner for a remote centred on [center], kept fully inside the area. */
+  fun topLeft(center: Offset): Offset = clamp(center.x - itemWidth / 2f, center.y - itemHeight / 2f)
+
+  /** Centre of a remote whose top-left corner is [topLeft]. */
+  fun centerOf(topLeft: Offset): Offset = Offset(topLeft.x + itemWidth / 2f, topLeft.y + itemHeight / 2f)
+}
+
+/** Resting placement of the floating remote: whether it is docked and where its centre sits. */
+internal data class RemotePlacement(val collapsed: Boolean, val center: Offset)
+
+/** Grows the docked icon into the full panel around the point the icon occupied. */
+internal fun expandRemote(dropped: Offset, icon: RemoteBounds, panel: RemoteBounds): RemotePlacement {
+  val topLeft = panel.topLeft(icon.centerOf(dropped))
+  return RemotePlacement(collapsed = false, center = panel.centerOf(topLeft))
+}
+
+/** Shrinks the panel back to its icon and snaps it against the edge it was dropped on. */
+internal fun dockRemote(dropped: Offset, icon: RemoteBounds, nearLeft: Boolean, nearRight: Boolean): RemotePlacement {
+  val x = when {
+    nearLeft -> 0f
+    nearRight -> icon.maxX
+    else -> dropped.x
+  }
+  val topLeft = icon.clamp(x, dropped.y)
+  return RemotePlacement(collapsed = true, center = icon.centerOf(topLeft))
+}
+
+/** Leaves a plain drop exactly where the user put it. */
+internal fun keepRemote(dropped: Offset, bounds: RemoteBounds, collapsed: Boolean): RemotePlacement =
+  RemotePlacement(collapsed, bounds.centerOf(bounds.clamp(dropped.x, dropped.y)))
+
+/** Resolves the resting placement for a drag that ended on [dropped]. */
+internal fun settleRemote(
+  dropped: Offset,
+  bounds: RemoteBounds,
+  icon: RemoteBounds,
+  panel: RemoteBounds,
+  edgeThreshold: Float,
+  collapsed: Boolean,
+): RemotePlacement {
+  val nearLeft = dropped.x <= edgeThreshold
+  val nearRight = dropped.x >= bounds.maxX - edgeThreshold
+  return when {
+    collapsed && !nearLeft && !nearRight -> expandRemote(dropped, icon, panel)
+    !collapsed && (nearLeft || nearRight) -> dockRemote(dropped, icon, nearLeft, nearRight)
+    else -> keepRemote(dropped, bounds, collapsed)
+  }
+}
+
+/**
+ * Placement of the floating remote.
+ *
+ * It is hoisted into [MainScreen] and saved so switching between the full-screen preview and the
+ * main screen, or recreating the composition, keeps the remote where the user dropped it instead of
+ * re-docking it to the right-hand edge.
+ */
+internal class FloatingRemoteState(collapsed: Boolean = true, center: Offset = Offset(Float.NaN, Float.NaN)) {
+  var collapsed by mutableStateOf(collapsed)
+  var center by mutableStateOf(center)
+
+  fun apply(placement: RemotePlacement) {
+    collapsed = placement.collapsed
+    center = placement.center
+  }
+}
+
+private val FloatingRemoteStateSaver = listSaver<FloatingRemoteState, Any>(
+  save = { listOf(it.collapsed, it.center.x, it.center.y) },
+  restore = { FloatingRemoteState(it[0] as Boolean, Offset(it[1] as Float, it[2] as Float)) },
+)
 
 @Composable
 private fun MiniRemote(onKey: (Int) -> Unit, modifier: Modifier = Modifier) {
