@@ -1,6 +1,16 @@
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
+}
+
+// Release signing is only configured when a keystore is present. Local builds and pull requests
+// therefore produce an unsigned APK; the release workflow decodes its keystore from repository
+// secrets and writes this file before invoking Gradle. See docs/releasing.md.
+val keystoreProperties = Properties().apply {
+  val file = rootProject.file("keystore.properties")
+  if (file.exists()) file.inputStream().use { load(it) }
 }
 
 android {
@@ -10,14 +20,33 @@ android {
         applicationId = "ernest.ascrcpy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        // Overridden by the release workflow from the pushed tag so published APKs are
+        // distinguishable; local builds keep the defaults.
+        versionCode = project.findProperty("ascrcpyVersionCode")?.toString()?.toIntOrNull() ?: 1
+        versionName = project.findProperty("ascrcpyVersionName")?.toString() ?: "1.0"
+    }
+
+    signingConfigs {
+        if (keystoreProperties.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                // minSdk 26 makes v1 unnecessary; v3 is what modern Android verifies and what
+                // future key rotation depends on.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {
