@@ -76,6 +76,10 @@ When a device is connected, also run:
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
+Never commit `keystore.properties`, `*.jks` or `*.keystore`; they are ignored, and the release
+workflow restores its keystore from repository secrets. Cutting a release is documented in
+[docs/releasing.md](docs/releasing.md).
+
 For an end-to-end device check, verify this sequence:
 
 1. Install and launch `ernest.ascrcpy.MainActivity`.

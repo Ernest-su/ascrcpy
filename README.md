@@ -180,6 +180,9 @@ Before opening a pull request, please run:
 Please read [AGENTS.md](AGENTS.md) first: it documents the naming conventions, module boundaries,
 protocol rules, and change discipline this repository expects.
 
+Maintainers: [docs/releasing.md](docs/releasing.md) is the runbook for cutting a release. Pushing a
+`v1.2.3` tag publishes a signed APK as a GitHub release automatically.
+
 ## Verified devices
 
 - **Controller**: OnePlus `PJE110`, Android 16 - install, launch, and the Compose instrumented suite

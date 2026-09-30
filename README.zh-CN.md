@@ -169,6 +169,9 @@ val channel = client.open("localabstract:my_service")
 
 请先阅读 [AGENTS.md](AGENTS.md)：其中记录了本仓库要求的命名约定、模块边界、协议规则和变更纪律。
 
+维护者请参阅 [docs/releasing.md](docs/releasing.md) 发版手册。推送 `v1.2.3` 形式的 tag 后，
+GitHub Actions 会自动构建已签名 APK 并发布为 GitHub Release。
+
 ## 已验证设备
 
 - **控制端**：OnePlus `PJE110`，Android 16 —— 安装、启动，以及包含主机输入框与悬浮遥控器行为的
