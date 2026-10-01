@@ -72,7 +72,7 @@ kotlin {
 }
 
 dependencies {
-  implementation(project(":adb"))
+  implementation(libs.adb)
   implementation(project(":scrcpy"))
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

@@ -19,7 +19,7 @@ and tested.
 ## Module boundaries
 
 - `app` owns Compose UI, Android lifecycle, assets, and dependency wiring.
-- `adb` is a reusable library and must not depend on `app`, `scrcpy`, Compose, or scrcpy protocol
+- `adb` is a separately published reusable library and must not depend on `app`, `scrcpy`, Compose, or scrcpy protocol
   types.
 - `scrcpy` depends only on the public ADB facade for device communication. It owns server startup,
   scrcpy framing, decoding, and control-message serialization.
@@ -64,8 +64,7 @@ server binary is reused, the controller side is an independent implementation.
 Run the focused test for the module being changed, then run the full verification before handoff:
 
 ```shell
-./gradlew :adb:testDebugUnitTest \
-  :scrcpy:testDebugUnitTest \
+./gradlew :scrcpy:testDebugUnitTest \
   :app:testDebugUnitTest \
   :app:assembleDebug
 ```

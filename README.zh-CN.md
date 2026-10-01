@@ -89,7 +89,7 @@ AScrcpy 去掉了这个前提：
 ## 构建
 
 ```shell
-./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ```
 
 需要 JDK 17。使用 Android CLI 安装到已连接设备：
@@ -130,13 +130,13 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 [docs/design-system.md](docs/design-system.md) 规定 UI 强制性约束，[AGENTS.md](AGENTS.md) 说明仓库
 开发规则。
 
-## 使用 ADB 模块
+## 使用 ADB 库
 
-`adb` 模块可以独立使用——用于工具、诊断，或任何需要轻量 ADB Host 实现的 Android 应用。
+[独立 `adb` 库](https://github.com/Ernest-su/adb) 可用于工具、诊断或其他 Android 应用。先在 `dependencyResolutionManagement.repositories` 中加入 `maven { url = uri("https://jitpack.io") }`。
 
 ```kotlin
 dependencies {
-    implementation(project(":adb"))
+    implementation("com.github.Ernest-su:adb:v0.1.0")
 }
 ```
 
@@ -173,7 +173,7 @@ val channel = client.open("localabstract:my_service")
 提交 pull request 前请先运行：
 
 ```shell
-./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ./gradlew :app:connectedDebugAndroidTest    # 需要连接设备
 ```
 

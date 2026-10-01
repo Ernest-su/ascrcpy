@@ -37,7 +37,6 @@ jobs:
       - name: Run unit tests and assemble both variants
         run: |
           ./gradlew --no-daemon \
-            :adb:testDebugUnitTest \
             :scrcpy:testDebugUnitTest \
             :app:testDebugUnitTest \
             :app:assembleDebug \
@@ -56,6 +55,5 @@ jobs:
         with:
           name: test-reports
           path: |
-            adb/build/reports/tests/
             app/build/reports/tests/
           retention-days: 7

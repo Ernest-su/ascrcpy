@@ -22,6 +22,7 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
@@ -31,5 +32,4 @@ plugins {
 
 rootProject.name = "AScrcpy"
 include(":app")
-include(":adb")
 include(":scrcpy")

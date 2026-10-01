@@ -54,9 +54,9 @@ app ──► scrcpy ──► adb
 
 `app` 是组合根，只负责调用库接口，不应实现 ADB framing 或 scrcpy 二进制协议。
 
-### `:adb`
+### 独立 `adb` 库
 
-这是可复用的独立 Android Library，公共抽象包括：
+这是由 [独立仓库](https://github.com/Ernest-su/adb) 通过 JitPack 发布的 Android Library；本仓库固定依赖 `v0.1.0`，不再包含其源码模块。公共抽象包括：
 
 | 接口/模型 | 职责 |
 |---|---|
@@ -242,7 +242,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 
 | 层级 | 当前覆盖 | 后续重点 |
 |---|---|---|
-| `adb` 单元测试 | endpoint 校验 | packet、AUTH、公钥、stream 分发、sync push |
+| 独立 `adb` 仓库单元测试 | endpoint 校验 | packet、AUTH、公钥、stream 分发、sync push |
 | `scrcpy` 单元测试 | 待补充 | frame header、control message、状态转换 |
 | `app` 单元测试 | 悬浮遥控器边界与展开/收起/贴边/缩放比例运算 | 主题、连接历史筛选 |
 | Compose instrumentation | 断开状态与 Connect 操作、主机历史建议、输入框焦点保持、遥控器拖放与短区域缩放 | 连接/失败/Streaming 状态、坐标映射 |
@@ -251,8 +251,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 完整本地验证命令：
 
 ```shell
-./gradlew :adb:testDebugUnitTest \
-  :scrcpy:testDebugUnitTest \
+./gradlew :scrcpy:testDebugUnitTest \
   :app:testDebugUnitTest \
   :app:assembleDebug \
   :app:connectedDebugAndroidTest

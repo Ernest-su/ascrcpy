@@ -97,7 +97,7 @@ an edge as a small icon, or pulled away from the edge into a full panel as shown
 ## Build
 
 ```shell
-./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ```
 
 Requires JDK 17. Install on a connected device with the Android CLI:
@@ -125,12 +125,12 @@ Run the instrumented tests on a connected device:
 5. Use the preview for touch input and the floating remote for navigation keys. Drag the remote
    anywhere; drop it against a left or right edge to collapse it back to a small icon.
 
-## Modules
+## Modules and dependencies
 
 | Module | Contents |
 |---|---|
 | `app` | Compose controller UI, Android lifecycle, assets, dependency wiring |
-| `adb` | reusable ADB host library; its public API never exposes the TCP implementation |
+| [`adb`](https://github.com/Ernest-su/adb) | reusable ADB host library published through JitPack; its public API never exposes the TCP implementation |
 | `scrcpy` | scrcpy server lifecycle, stream protocol, `MediaCodec` decoder, control messages |
 
 Allowed dependency direction is `app -> scrcpy -> adb`, plus `app -> adb` for direct connection and
@@ -141,14 +141,14 @@ Further reading: [docs/architecture.md](docs/architecture.md) for module boundar
 flows, [docs/design-system.md](docs/design-system.md) for the mandatory UI constraints, and
 [AGENTS.md](AGENTS.md) for repository development rules.
 
-## Using the ADB module
+## Using the ADB library
 
-The `adb` module is usable on its own - for tooling, diagnostics, or any Android app that needs a
-dependency-light ADB host implementation.
+The [standalone `adb` library](https://github.com/Ernest-su/adb) is usable for tooling, diagnostics, or any Android app that needs a
+dependency-light ADB host implementation. Add `maven { url = uri("https://jitpack.io") }` to `dependencyResolutionManagement.repositories` first.
 
 ```kotlin
 dependencies {
-    implementation(project(":adb"))
+    implementation("com.github.Ernest-su:adb:v0.1.0")
 }
 ```
 
@@ -185,7 +185,7 @@ to a single module and behind an existing interface.
 Before opening a pull request, please run:
 
 ```shell
-./gradlew :adb:testDebugUnitTest :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
+./gradlew :scrcpy:testDebugUnitTest :app:testDebugUnitTest :app:assembleDebug
 ./gradlew :app:connectedDebugAndroidTest    # with a device connected
 ```
 

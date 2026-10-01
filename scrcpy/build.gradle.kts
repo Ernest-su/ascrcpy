@@ -15,7 +15,7 @@ android {
 kotlin { jvmToolchain(17) }
 
 dependencies {
-    api(project(":adb"))
+    api(libs.adb)
     implementation(libs.kotlinx.coroutines.android)
     testImplementation(libs.junit)
 }
