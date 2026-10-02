@@ -1,8 +1,15 @@
 package ernest.ascrcpy.ui.main
 
 import android.app.Activity
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import android.os.Build
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
@@ -27,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.draw.clip
@@ -36,6 +44,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.Image
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -65,16 +74,51 @@ import ernest.ascrcpy.theme.AScrcpyTheme
 import ernest.ascrcpy.theme.WeChatBrand
 import ernest.ascrcpy.theme.WeChatDanger
 import ernest.ascrcpy.theme.WeChatOverlayStrong
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import android.graphics.Bitmap
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
 fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
   val state by viewModel.uiState.collectAsStateWithLifecycle()
+  val context = LocalContext.current
+  val usbManager = remember(context) { context.getSystemService(Context.USB_SERVICE) as UsbManager }
+  val usbAction = remember(context) { "${context.packageName}.USB_PERMISSION" }
+  DisposableEffect(context) {
+    val receiver = object : BroadcastReceiver() {
+      override fun onReceive(receivedContext: Context, intent: Intent) {
+        if (intent.action != usbAction) return
+        @Suppress("DEPRECATION")
+        val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
+        if (device != null && intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false))
+          viewModel.connectUsb(device)
+        else viewModel.reportUsbError(context.getString(R.string.log_usb_denied))
+      }
+    }
+    if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, IntentFilter(usbAction), Context.RECEIVER_NOT_EXPORTED)
+    else { @Suppress("DEPRECATION") context.registerReceiver(receiver, IntentFilter(usbAction)) }
+    onDispose { context.unregisterReceiver(receiver) }
+  }
+  val connectUsb = {
+    val devices = viewModel.usbDevices()
+    if (devices.isEmpty()) viewModel.reportUsbError(context.getString(R.string.log_usb_missing))
+    else {
+      val device = devices.first()
+      if (viewModel.hasUsbPermission(device)) viewModel.connectUsb(device)
+      else usbManager.requestPermission(device, PendingIntent.getBroadcast(context, 0,
+        Intent(usbAction).setPackage(context.packageName),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE))
+    }
+  }
   MainScreen(state, viewModel::setHost, viewModel::setPort, viewModel::connect,
     viewModel::disconnect, viewModel::probe, viewModel::startMirroring,
     viewModel::stopMirroring, viewModel::attachSurface, viewModel::detachSurface, viewModel::injectTouch,
-    viewModel::injectKey, viewModel::deleteHost, modifier)
+    viewModel::injectKey, viewModel::deleteHost, modifier,
+    viewModel::setMethod, viewModel::setPairingHost, viewModel::setPairingPort,
+    viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
+    viewModel::stopQrPairing, connectUsb)
 }
 
 @Composable
@@ -93,6 +137,14 @@ internal fun MainScreen(
   onKey: (Int) -> Unit,
   onDeleteHost: (String) -> Unit,
   modifier: Modifier = Modifier,
+  onMethodChange: (ConnectionMethod) -> Unit = {},
+  onPairingHostChange: (String) -> Unit = {},
+  onPairingPortChange: (String) -> Unit = {},
+  onPairingCodeChange: (String) -> Unit = {},
+  onPair: () -> Unit = {},
+  onStartQr: () -> Unit = {},
+  onStopQr: () -> Unit = {},
+  onConnectUsb: () -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
@@ -106,10 +158,26 @@ internal fun MainScreen(
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
-      onProbe, onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier)
+      onProbe, onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier,
+      onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb)
     if (state.connected) {
       FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
+  }
+  val payload = state.qrPayload
+  if (payload != null) {
+    val bitmap = remember(payload) {
+      val size = 640
+      val bits = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, size, size)
+      val pixels = IntArray(size * size) { index -> if (bits[index % size, index / size]) android.graphics.Color.BLACK else android.graphics.Color.WHITE }
+      Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
+    }
+    AlertDialog(onDismissRequest = onStopQr, title = { Text(stringResource(R.string.qr_title)) },
+      text = { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(stringResource(R.string.qr_description))
+        Image(bitmap, contentDescription = stringResource(R.string.qr_image_description), modifier = Modifier.fillMaxWidth())
+      } },
+      confirmButton = { TextButton(onClick = onStopQr) { Text(stringResource(R.string.stop)) } })
   }
 }
 
@@ -129,6 +197,13 @@ private fun NormalScreen(
   onTouch: (Int, Long, Int, Int, Float) -> Unit,
   onDeleteHost: (String) -> Unit,
   modifier: Modifier,
+  onMethodChange: (ConnectionMethod) -> Unit,
+  onPairingHostChange: (String) -> Unit,
+  onPairingPortChange: (String) -> Unit,
+  onPairingCodeChange: (String) -> Unit,
+  onPair: () -> Unit,
+  onStartQr: () -> Unit,
+  onConnectUsb: () -> Unit,
 ) {
   Scaffold(modifier.fillMaxSize()) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
@@ -152,11 +227,47 @@ private fun NormalScreen(
       Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
           Text(stringResource(R.string.adb_device), style = MaterialTheme.typography.titleLarge)
-          Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            HostHistoryField(state, onHostChange, onDeleteHost, Modifier.weight(1f))
-            Spacer(Modifier.width(12.dp))
-            OutlinedTextField(state.port, onPortChange, Modifier.width(112.dp), label = { Text(stringResource(R.string.port)) },
-              singleLine = true, enabled = !state.busy && !state.connected)
+          if (!state.connected) {
+            ConnectionMethod.entries.forEach { method ->
+              Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
+                .clickable(enabled = !state.busy) { onMethodChange(method) }) {
+                RadioButton(selected = state.method == method, onClick = { onMethodChange(method) }, enabled = !state.busy)
+                Text(stringResource(when (method) {
+                  ConnectionMethod.TCP -> R.string.method_tcp
+                  ConnectionMethod.WIRELESS_CODE -> R.string.method_wireless_code
+                  ConnectionMethod.WIRELESS_QR -> R.string.method_wireless_qr
+                  ConnectionMethod.USB -> R.string.method_usb
+                }))
+              }
+            }
+          }
+          if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE || state.connected) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+              HostHistoryField(state, onHostChange, onDeleteHost, Modifier.weight(1f))
+              Spacer(Modifier.width(12.dp))
+              OutlinedTextField(state.port, onPortChange, Modifier.width(112.dp), label = { Text(stringResource(R.string.port)) },
+                singleLine = true, enabled = !state.busy && !state.connected)
+            }
+          }
+          if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected) {
+            Text(stringResource(R.string.pairing_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(state.pairingHost, onPairingHostChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.pairing_host)) }, singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+              OutlinedTextField(state.pairingPort, onPairingPortChange, Modifier.weight(1f),
+                label = { Text(stringResource(R.string.pairing_port)) }, singleLine = true)
+              OutlinedTextField(state.pairingCode, onPairingCodeChange, Modifier.weight(1f),
+                label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true)
+            }
+            OutlinedButton(onPair, enabled = !state.busy) { Text(stringResource(R.string.pair_wireless)) }
+          }
+          if (state.method == ConnectionMethod.WIRELESS_QR && !state.connected) {
+            Text(stringResource(R.string.qr_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onStartQr, enabled = !state.busy) { Text(stringResource(R.string.pair_qr)) }
+          }
+          if (state.method == ConnectionMethod.USB && !state.connected) {
+            Text(stringResource(R.string.usb_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onConnectUsb, enabled = !state.busy) { Text(stringResource(R.string.connect_usb)) }
           }
           StatusPill(state.connectionState)
           Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -165,6 +276,7 @@ private fun NormalScreen(
               Button(onStartMirroring, enabled = !state.busy && state.scrcpyState !is ScrcpyState.Streaming) { Text(stringResource(R.string.start_mirroring)) }
               OutlinedButton(onDisconnect, enabled = !state.busy) { Text(stringResource(R.string.disconnect)) }
             } else {
+              if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE)
               Button(onConnect, enabled = !state.busy && state.host.isNotBlank()) {
                 if (state.busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
                 Text(stringResource(if (state.busy) R.string.connecting else R.string.connect))

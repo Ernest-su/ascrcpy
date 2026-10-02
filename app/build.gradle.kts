@@ -73,6 +73,7 @@ kotlin {
 
 dependencies {
   implementation(libs.adb)
+  implementation("com.google.zxing:core:3.5.4")
   implementation(project(":scrcpy"))
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)

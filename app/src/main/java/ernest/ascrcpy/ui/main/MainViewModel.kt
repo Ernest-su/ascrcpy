@@ -1,6 +1,9 @@
 package ernest.ascrcpy.ui.main
 
 import android.app.Application
+import android.content.Context
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import android.view.Surface
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
@@ -10,6 +13,7 @@ import ernest.ascrcpy.adb.AdbClient
 import ernest.ascrcpy.adb.AdbConnectionState
 import ernest.ascrcpy.adb.AdbEndpoint
 import ernest.ascrcpy.adb.DefaultAdbClient
+import ernest.ascrcpy.adb.transport.UsbAdbTransport
 import ernest.ascrcpy.scrcpy.ScrcpyClient
 import ernest.ascrcpy.scrcpy.ScrcpyState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,13 +22,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
+
+enum class ConnectionMethod { TCP, WIRELESS_CODE, WIRELESS_QR, USB }
 
 data class MainUiState(
   val host: String = "192.168.68.59",
   val hostHistory: List<String> = emptyList(),
   val port: String = "5555",
+  val method: ConnectionMethod = ConnectionMethod.TCP,
+  val pairingHost: String = "",
+  val pairingPort: String = "",
+  val pairingCode: String = "",
+  val qrPayload: String? = null,
   val connectionState: AdbConnectionState = AdbConnectionState.Disconnected,
   val console: String = "",
   val busy: Boolean = false,
@@ -39,6 +53,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ?.split('\n')?.filter(String::isNotBlank)?.distinct().orEmpty()
   private val client: AdbClient = DefaultAdbClient.factory(application).create()
   private val scrcpy = ScrcpyClient(client)
+  private val usbManager = application.getSystemService(Context.USB_SERVICE) as UsbManager
+  private var qrDiscovery: QrPairingDiscovery? = null
+  private var qrJob: Job? = null
   private val form = MutableStateFlow(MainUiState(
     host = savedHosts.firstOrNull() ?: "192.168.68.59",
     hostHistory = savedHosts,
@@ -55,6 +72,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   fun setHost(value: String) = form.update { copy(host = value.trim()) }
 
   fun setPort(value: String) = form.update { copy(port = value.filter(Char::isDigit).take(5)) }
+  fun setMethod(value: ConnectionMethod) {
+    stopQrPairing()
+    form.update { copy(method = value, port = when (value) {
+      ConnectionMethod.TCP -> if (port.isBlank()) "5555" else port
+      ConnectionMethod.WIRELESS_CODE -> if (method != value) "" else port
+      else -> port
+    }) }
+  }
+  fun setPairingHost(value: String) = form.update { copy(pairingHost = value.trim()) }
+  fun setPairingPort(value: String) = form.update { copy(pairingPort = value.filter(Char::isDigit).take(5)) }
+  fun setPairingCode(value: String) = form.update { copy(pairingCode = value.filter(Char::isDigit).take(6)) }
+  fun usbDevices(): List<UsbDevice> = UsbAdbTransport.discover(usbManager)
+  fun hasUsbPermission(device: UsbDevice): Boolean = usbManager.hasPermission(device)
 
   fun deleteHost(host: String) {
     val updated = form.value.hostHistory.filterNot { it == host }
@@ -72,7 +102,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     rememberHost(snapshot.host)
     viewModelScope.launch {
       form.update { copy(busy = true, console = string(R.string.log_opening_connection)) }
-      runCatching { client.connect(AdbEndpoint(snapshot.host, port)) }
+      runCatching {
+        if (snapshot.method == ConnectionMethod.WIRELESS_CODE || snapshot.method == ConnectionMethod.WIRELESS_QR)
+          client.connectWireless(AdbEndpoint(snapshot.host, port))
+        else client.connect(AdbEndpoint(snapshot.host, port))
+      }
         .onSuccess { device ->
           shouldMirror = true
           form.update { copy(console = string(R.string.log_connected, device.banner)) }
@@ -81,6 +115,109 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       form.update { copy(busy = false) }
       scheduleMirroring()
     }
+  }
+
+  fun connectUsb(device: UsbDevice) {
+    if (!usbManager.hasPermission(device)) {
+      form.update { copy(console = string(R.string.log_usb_denied)) }
+      return
+    }
+    viewModelScope.launch {
+      form.update { copy(busy = true, console = string(R.string.log_opening_connection)) }
+      runCatching { client.connectUsb(device) }
+        .onSuccess { target ->
+          shouldMirror = true
+          form.update { copy(console = string(R.string.log_connected, target.banner)) }
+          scheduleMirroring()
+        }
+        .onFailure { error -> form.update { copy(console = error.message ?: string(R.string.unknown_error)) } }
+      form.update { copy(busy = false) }
+    }
+  }
+
+  fun reportUsbError(message: String) = form.update { copy(console = message) }
+
+  fun pairWithCode() {
+    val snapshot = form.value
+    val port = snapshot.pairingPort.toIntOrNull()
+    if (snapshot.pairingHost.isBlank() || port == null || port !in 1..65535 ||
+      !snapshot.pairingCode.matches(Regex("[0-9]{6}"))) {
+      form.update { copy(console = string(R.string.log_invalid_pairing)) }
+      return
+    }
+    viewModelScope.launch {
+      form.update { copy(busy = true, console = string(R.string.log_pairing)) }
+      runCatching { client.pairWireless(AdbEndpoint(snapshot.pairingHost, port), snapshot.pairingCode) }
+        .onSuccess { guid -> form.update {
+          copy(host = snapshot.pairingHost, port = "", pairingCode = "", console = string(R.string.log_paired, guid))
+        } }
+        .onFailure { error -> form.update { copy(console = error.message ?: string(R.string.unknown_error)) } }
+      form.update { copy(busy = false) }
+    }
+  }
+
+  fun startQrPairing() {
+    if (form.value.busy || qrDiscovery != null) return
+    val qr = QrPairing()
+    val connections = Channel<QrPairingDiscovery.ResolvedService>(Channel.UNLIMITED)
+    var pairingStarted = false
+    val discovery = QrPairingDiscovery(getApplication(), qr.serviceName,
+      onPairing = { service ->
+        if (!pairingStarted) {
+          pairingStarted = true
+          qrJob = viewModelScope.launch {
+            form.update { copy(busy = true, console = string(R.string.log_pairing)) }
+            try {
+              val guid = client.pairWireless(AdbEndpoint(service.host, service.port), qr.password)
+              form.update { copy(console = string(R.string.log_finding_connection, guid)) }
+              val connection = withTimeoutOrNull(30_000) {
+                while (true) {
+                  val candidate = connections.receive()
+                  if (candidate.name.contains(guid, ignoreCase = true) || candidate.host == service.host)
+                    return@withTimeoutOrNull candidate
+                }
+                @Suppress("UNREACHABLE_CODE")
+                null
+              }
+              if (connection == null) {
+                form.update { copy(method = ConnectionMethod.WIRELESS_CODE, host = service.host,
+                  console = string(R.string.log_connection_not_found, guid)) }
+              } else {
+                val endpoint = AdbEndpoint(connection.host, connection.port)
+                val target = client.connectWireless(endpoint)
+                shouldMirror = true
+                form.update { copy(host = connection.host, port = connection.port.toString(),
+                  console = string(R.string.log_connected, target.banner)) }
+                scheduleMirroring()
+              }
+            } catch (error: CancellationException) {
+              throw error
+            } catch (error: Exception) {
+              form.update { copy(console = error.message ?: string(R.string.unknown_error)) }
+            } finally {
+              form.update { copy(busy = false, qrPayload = null) }
+              qrDiscovery?.stop(); qrDiscovery = null; qrJob = null; connections.close()
+            }
+          }
+        }
+      },
+      onConnection = { connections.trySend(it) },
+      onError = { code ->
+        form.update { copy(console = string(R.string.log_discovery_failed, code?.toString() ?: "")) }
+        stopQrPairing()
+      })
+    qrDiscovery = discovery
+    form.update { copy(qrPayload = qr.payload, console = string(R.string.log_qr_waiting)) }
+    try { discovery.start() } catch (error: Exception) {
+      form.update { copy(console = error.message ?: string(R.string.unknown_error)) }
+      stopQrPairing()
+    }
+  }
+
+  fun stopQrPairing() {
+    qrJob?.cancel(); qrJob = null
+    qrDiscovery?.stop(); qrDiscovery = null
+    form.update { copy(qrPayload = null) }
   }
 
   fun disconnect() {
@@ -167,6 +304,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   override fun onCleared() {
+    stopQrPairing()
     scrcpy.close()
     client.close()
   }
