@@ -118,7 +118,7 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::injectKey, viewModel::deleteHost, modifier,
     viewModel::setMethod, viewModel::setPairingHost, viewModel::setPairingPort,
     viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
-    viewModel::stopQrPairing, connectUsb)
+    viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress)
 }
 
 @Composable
@@ -145,6 +145,7 @@ internal fun MainScreen(
   onStartQr: () -> Unit = {},
   onStopQr: () -> Unit = {},
   onConnectUsb: () -> Unit = {},
+  onTailcatAddressChange: (String) -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
@@ -159,7 +160,8 @@ internal fun MainScreen(
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
       onProbe, onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier,
-      onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb)
+      onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
+      onTailcatAddressChange)
     if (state.connected) {
       FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
@@ -204,6 +206,7 @@ private fun NormalScreen(
   onPair: () -> Unit,
   onStartQr: () -> Unit,
   onConnectUsb: () -> Unit,
+  onTailcatAddressChange: (String) -> Unit,
 ) {
   Scaffold(modifier.fillMaxSize()) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
@@ -234,6 +237,7 @@ private fun NormalScreen(
                 RadioButton(selected = state.method == method, onClick = { onMethodChange(method) }, enabled = !state.busy)
                 Text(stringResource(when (method) {
                   ConnectionMethod.TCP -> R.string.method_tcp
+                  ConnectionMethod.TAILCAT -> R.string.method_tailcat
                   ConnectionMethod.WIRELESS_CODE -> R.string.method_wireless_code
                   ConnectionMethod.WIRELESS_QR -> R.string.method_wireless_qr
                   ConnectionMethod.USB -> R.string.method_usb
@@ -241,7 +245,17 @@ private fun NormalScreen(
               }
             }
           }
-          if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE || state.connected) {
+          if (state.method == ConnectionMethod.TAILCAT) {
+            OutlinedTextField(state.tailcatAddress, onTailcatAddressChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.tailcat_address)) },
+              singleLine = true, enabled = !state.busy && !state.connected)
+            Text(stringResource(R.string.tailcat_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.tailcat_remote_port)) },
+              singleLine = true, enabled = !state.busy && !state.connected)
+          }
+          if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE ||
+            (state.connected && state.method != ConnectionMethod.TAILCAT)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               HostHistoryField(state, onHostChange, onDeleteHost, Modifier.weight(1f))
               Spacer(Modifier.width(12.dp))
@@ -276,8 +290,9 @@ private fun NormalScreen(
               Button(onStartMirroring, enabled = !state.busy && state.scrcpyState !is ScrcpyState.Streaming) { Text(stringResource(R.string.start_mirroring)) }
               OutlinedButton(onDisconnect, enabled = !state.busy) { Text(stringResource(R.string.disconnect)) }
             } else {
-              if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE)
-              Button(onConnect, enabled = !state.busy && state.host.isNotBlank()) {
+              if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.TAILCAT || state.method == ConnectionMethod.WIRELESS_CODE)
+              Button(onConnect, enabled = !state.busy &&
+                (if (state.method == ConnectionMethod.TAILCAT) state.tailcatAddress.isNotBlank() else state.host.isNotBlank())) {
                 if (state.busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
                 Text(stringResource(if (state.busy) R.string.connecting else R.string.connect))
               }

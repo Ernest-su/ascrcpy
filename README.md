@@ -51,7 +51,7 @@ AScrcpy removes that requirement:
 |---|---|---|
 | Controller runs on | Linux, Windows, macOS | Android phone or tablet |
 | Setup | install on a PC | install on a phone |
-| Connection | USB or TCP/IP | TCP ADB, Android 11+ wireless debugging, USB Host |
+| Connection | USB or TCP/IP | TCP ADB, Tailcat, Android 11+ wireless debugging, USB Host |
 | UI toolkit | SDL / native | Jetpack Compose, Material 3, WeUI visual language |
 | Remote navigation | desktop keyboard and mouse | on-screen floating D-pad, back, home, menu, volume, power |
 | Audio, clipboard, HID, recording | yes | not implemented yet |
@@ -61,7 +61,7 @@ Android TV that has no keyboard and no app store.
 
 ## Features
 
-- TCP ADB, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
+- TCP ADB, remote Tailcat connections, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
 - Shell execution, sync push, and multiplexed arbitrary ADB services.
 - Bundled, matching scrcpy-server 4.0, started and stopped as part of the session.
 - Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
@@ -90,6 +90,7 @@ an edge as a small icon, or pulled away from the edge into a full panel as shown
 
 - Android 8.0 (API 26) or newer on the **controller**.
 - For TCP ADB, a target reachable at an already-enabled ADB port (often `adb tcpip 5555`).
+- For Tailcat, enable TCP ADB on the target and expose that port with `tailcat serve 5555`. Select Tailcat in AScrcpy, then enter the printed Tailcat address and remote ADB port (default 5555). No nl2sh installation is required. Treat the address as a credential. The APK includes ARM64 and ARMv7 Tailcat clients; other controller ABIs are not supported.
 - For wireless debugging, Android 11+ on the target and both devices on the same reachable Wi-Fi network. Pair using the temporary pairing address/port and six-digit code, then connect using the separate connection port. For QR pairing, show the QR code in AScrcpy and scan it from the target's Wireless debugging settings; the app discovers and connects to the target.
 - For USB, USB Host support on the controller, USB debugging on the target, a compatible cable, and approval of USB access and RSA authorization prompts.
 - Legacy TCP ADB is plaintext; use it on a trusted network.
@@ -116,8 +117,8 @@ Run the instrumented tests on a connected device:
 ## Usage
 
 1. Install AScrcpy on the controller phone.
-2. Select TCP, wireless pairing code, wireless QR, or USB Host. For wireless code, pair with the temporary pairing port first, then enter the separate connection port and tap **Connect**. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
-3. For TCP, enter the target address and port, then tap **Connect**. The app remembers the host.
+2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, pair with the temporary pairing port first, then enter the separate connection port and tap **Connect**. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
+3. For TCP, enter the target address and port; for Tailcat, enter the shared address and remote ADB port. Tap **Connect**. The app remembers TCP hosts, but does not save Tailcat addresses.
 4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
    full screen automatically.
 5. Use the preview for touch input and the floating remote for navigation keys. Drag the remote

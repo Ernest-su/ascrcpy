@@ -7,7 +7,7 @@ AScrcpy 让一台 Android 设备作为控制端，通过 ADB 连接另一台 And
 
 当前版本聚焦于最小可用链路：
 
-- 已启用的 TCP ADB（默认端口 5555）、Android 11+ 无线调试配对与 TLS 连接、USB Host ADB；
+- 已启用的 TCP ADB（默认端口 5555）、Tailcat 端口共享、Android 11+ 无线调试配对与 TLS 连接、USB Host ADB；
 - scrcpy-server 4.0；
 - H.264 视频，不启用音频；
 - `MediaCodec` 硬件解码到 `SurfaceView`；
@@ -84,6 +84,8 @@ DefaultAdbClient
 
 USB Host 使用库提供的 `UsbAdbTransport`，App 负责枚举设备与申请 Android USB 权限。无线调试使用配对端口建立信任，再通过独立连接端口进入 TLS ADB 会话。二维码由 App 生成，并通过 Android NSD 发现目标配对和连接服务。若整体替换成第三方
 ADB 库，则实现新的 `AdbClient`，上层 `scrcpy` 和 `app` 无需修改。
+
+Tailcat 连接由 `app` 的 `TailcatForwarder` 管理官方 Tailcat 进程。它将被控端共享的 ADB 端口映射到控制端随机分配的 `127.0.0.1` 端口，然后把本地端口交给现有 `AdbClient.connect`。断开连接或销毁 ViewModel 时停止进程；ADB framing 和 scrcpy 协议仍由原有模块负责。当前只支持目标端已共享的 TCP ADB 端口，不自动启用目标端 adbd，也不通过 Tailcat 完成无线调试配对。
 
 ### `:scrcpy`
 

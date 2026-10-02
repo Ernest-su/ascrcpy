@@ -61,6 +61,12 @@ android {
     }
 
     packaging {
+      jniLibs {
+        // Tailcat is an executable stored in the native library directory so Android
+        // permits the app to execute it on modern releases.
+        useLegacyPackaging = true
+        keepDebugSymbols += "**/libtailcat.so"
+      }
       resources {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }

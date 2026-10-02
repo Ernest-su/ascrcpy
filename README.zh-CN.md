@@ -46,7 +46,7 @@ AScrcpy 去掉了这个前提：
 |---|---|---|
 | 控制端运行在 | Linux、Windows、macOS | Android 手机或平板 |
 | 准备方式 | 在电脑上安装 | 在手机上安装 |
-| 连接方式 | USB 或 TCP/IP | TCP ADB、Android 11+ 无线调试、USB 主机 |
+| 连接方式 | USB 或 TCP/IP | TCP ADB、Tailcat、Android 11+ 无线调试、USB 主机 |
 | UI 技术栈 | SDL / 原生 | Jetpack Compose、Material 3、WeUI 视觉语言 |
 | 遥控导航 | 电脑键盘与鼠标 | 屏幕悬浮方向键、返回、Home、菜单、音量、电源 |
 | 音频、剪贴板、HID、录制 | 支持 | 尚未实现 |
@@ -56,7 +56,7 @@ AScrcpy 去掉了这个前提：
 
 ## 功能
 
-- 支持 TCP ADB、Android 11+ 无线调试配对码或二维码，以及 USB 主机连接，使用持久化 RSA 身份。
+- 支持 TCP ADB、Tailcat 远程连接、Android 11+ 无线调试配对码或二维码，以及 USB 主机连接，使用持久化 RSA 身份。
 - Shell 执行、sync push，以及多路复用的任意 ADB service。
 - 内置匹配的 scrcpy-server 4.0，随会话启动和停止。
 - 通过 `MediaCodec` 将 H.264 低延迟解码到 `SurfaceView`。
@@ -83,6 +83,7 @@ AScrcpy 去掉了这个前提：
 
 - **控制端**为 Android 8.0（API 26）及以上。
 - TCP 模式要求目标已开启 ADB 网络端口，常见做法是 `adb tcpip 5555`。
+- Tailcat 模式要求目标已开启 TCP ADB，并已通过 `tailcat serve 5555` 共享该端口。选择 Tailcat，输入服务端显示的 Tailcat 地址和远端 ADB 端口（默认 5555）。无需安装 nl2sh。地址相当于连接凭据，应只发给授权的控制端。应用内置 ARM64/ARMv7 Tailcat 客户端，连接断开时会停止隧道；其他 CPU 架构暂不支持。
 - 无线调试要求目标运行 Android 11+，两台设备处于同一可达的 Wi-Fi 网络。配对码模式先使用临时配对端口配对，再输入独立连接端口；二维码模式由本应用展示二维码，目标设备扫码后自动发现并连接。
 - USB 模式要求控制端支持 USB 主机、目标开启 USB 调试，并批准 USB 访问和 RSA 授权。
 - legacy TCP ADB 是明文传输，请只在可信网络使用。
@@ -109,8 +110,8 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 ## 使用
 
 1. 把 AScrcpy 安装到控制端手机上。
-2. 选择 TCP、无线配对码、无线二维码或 USB 主机。配对码模式先用临时配对端口配对，再输入独立连接端口；二维码模式由目标设备扫描本应用展示的码；USB 模式请批准权限弹窗。
-3. TCP 模式输入目标地址和端口后点击 **连接**。应用会记住该主机。
+2. 选择 TCP、Tailcat、无线配对码、无线二维码或 USB 主机。配对码模式先用临时配对端口配对，再输入独立连接端口；二维码模式由目标设备扫描本应用展示的码；USB 模式请批准权限弹窗。
+3. TCP 模式输入目标地址和端口；Tailcat 模式输入共享地址和远端 ADB 端口。点击 **连接**。应用会记住 TCP 主机，但不保存 Tailcat 地址。
 4. 点击 **Test shell** 确认连接，再点击 **Start mirroring**，预览会自动全屏打开。
 5. 直接在预览画面上进行触摸操作，用悬浮遥控器发送导航键。遥控器可以拖到任意位置；松手时若靠近
    左右边缘，则收成小图标停靠。

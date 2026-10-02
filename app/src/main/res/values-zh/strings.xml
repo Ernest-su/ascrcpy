@@ -5,6 +5,12 @@
     <string name="preview_controls_description">连接成功后会自动全屏显示预览。长按靠边的悬浮遥控器图标，可在全屏预览和主界面之间切换。</string>
     <string name="adb_device">ADB 设备</string>
     <string name="method_tcp">TCP ADB</string>
+    <string name="method_tailcat">Tailcat</string>
+    <string name="tailcat_address">Tailcat 地址</string>
+    <string name="tailcat_remote_port">远端 ADB 端口</string>
+    <string name="tailcat_description">填写被控设备上 tailcat serve 显示的地址；被控设备需已共享 ADB 端口。</string>
+    <string name="log_invalid_tailcat_address">请输入有效的 Tailcat 地址</string>
+    <string name="log_starting_tailcat">正在启动 Tailcat 隧道…</string>
     <string name="method_wireless_code">无线调试 · 配对码</string>
     <string name="method_wireless_qr">无线调试 · 二维码</string>
     <string name="method_usb">USB 主机</string>

@@ -28,12 +28,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
 
-enum class ConnectionMethod { TCP, WIRELESS_CODE, WIRELESS_QR, USB }
+enum class ConnectionMethod { TCP, TAILCAT, WIRELESS_CODE, WIRELESS_QR, USB }
 
 data class MainUiState(
   val host: String = "192.168.68.59",
   val hostHistory: List<String> = emptyList(),
   val port: String = "5555",
+  val tailcatAddress: String = "",
   val method: ConnectionMethod = ConnectionMethod.TCP,
   val pairingHost: String = "",
   val pairingPort: String = "",
@@ -53,6 +54,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ?.split('\n')?.filter(String::isNotBlank)?.distinct().orEmpty()
   private val client: AdbClient = DefaultAdbClient.factory(application).create()
   private val scrcpy = ScrcpyClient(client)
+  private val tailcat = TailcatForwarder(application)
   private val usbManager = application.getSystemService(Context.USB_SERVICE) as UsbManager
   private var qrDiscovery: QrPairingDiscovery? = null
   private var qrJob: Job? = null
@@ -72,10 +74,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   fun setHost(value: String) = form.update { copy(host = value.trim()) }
 
   fun setPort(value: String) = form.update { copy(port = value.filter(Char::isDigit).take(5)) }
+  fun setTailcatAddress(value: String) = form.update { copy(tailcatAddress = value.trim()) }
   fun setMethod(value: ConnectionMethod) {
     stopQrPairing()
     form.update { copy(method = value, port = when (value) {
       ConnectionMethod.TCP -> if (port.isBlank()) "5555" else port
+      ConnectionMethod.TAILCAT -> if (method != value) "5555" else port
       ConnectionMethod.WIRELESS_CODE -> if (method != value) "" else port
       else -> port
     }) }
@@ -99,19 +103,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       form.update { copy(console = string(R.string.log_invalid_port)) }
       return
     }
-    rememberHost(snapshot.host)
+    if (snapshot.method == ConnectionMethod.TAILCAT &&
+      (snapshot.tailcatAddress.isBlank() || snapshot.tailcatAddress.any(Char::isWhitespace))) {
+      form.update { copy(console = string(R.string.log_invalid_tailcat_address)) }
+      return
+    }
+    if (snapshot.method != ConnectionMethod.TAILCAT) rememberHost(snapshot.host)
     viewModelScope.launch {
       form.update { copy(busy = true, console = string(R.string.log_opening_connection)) }
       runCatching {
-        if (snapshot.method == ConnectionMethod.WIRELESS_CODE || snapshot.method == ConnectionMethod.WIRELESS_QR)
-          client.connectWireless(AdbEndpoint(snapshot.host, port))
-        else client.connect(AdbEndpoint(snapshot.host, port))
+        when (snapshot.method) {
+          ConnectionMethod.TAILCAT -> {
+            form.update { copy(console = string(R.string.log_starting_tailcat)) }
+            val localPort = tailcat.start(snapshot.tailcatAddress, port)
+            client.connect(AdbEndpoint("127.0.0.1", localPort))
+          }
+          ConnectionMethod.WIRELESS_CODE, ConnectionMethod.WIRELESS_QR ->
+            client.connectWireless(AdbEndpoint(snapshot.host, port))
+          else -> client.connect(AdbEndpoint(snapshot.host, port))
+        }
       }
         .onSuccess { device ->
           shouldMirror = true
           form.update { copy(console = string(R.string.log_connected, device.banner)) }
         }
-        .onFailure { error -> form.update { copy(console = error.stackTraceToString()) } }
+        .onFailure { error ->
+          tailcat.stop()
+          form.update { copy(console = error.message ?: string(R.string.unknown_error)) }
+        }
       form.update { copy(busy = false) }
       scheduleMirroring()
     }
@@ -227,8 +246,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       mirrorJob?.cancel()
       scrcpy.stop()
       form.update { copy(busy = true) }
-      client.disconnect()
-      form.update { copy(busy = false, console = string(R.string.log_disconnected)) }
+      try {
+        client.disconnect()
+      } finally {
+        tailcat.stop()
+        form.update { copy(busy = false, console = string(R.string.log_disconnected)) }
+      }
     }
   }
 
@@ -307,6 +330,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     stopQrPairing()
     scrcpy.close()
     client.close()
+    tailcat.close()
   }
 
   private fun rememberHost(host: String) {

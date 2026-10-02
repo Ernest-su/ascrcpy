@@ -5,6 +5,12 @@
     <string name="preview_controls_description">A successful connection opens the preview in full screen automatically. Long-press the docked floating remote icon to switch between full-screen preview and the main screen.</string>
     <string name="adb_device">ADB device</string>
     <string name="method_tcp">TCP ADB</string>
+    <string name="method_tailcat">Tailcat</string>
+    <string name="tailcat_address">Tailcat address</string>
+    <string name="tailcat_remote_port">Remote ADB port</string>
+    <string name="tailcat_description">Enter the address printed by tailcat serve on the target. The target must already expose its ADB port.</string>
+    <string name="log_invalid_tailcat_address">Enter a valid Tailcat address</string>
+    <string name="log_starting_tailcat">Starting Tailcat tunnel…</string>
     <string name="method_wireless_code">Wireless debugging · pairing code</string>
     <string name="method_wireless_qr">Wireless debugging · QR code</string>
     <string name="method_usb">USB Host</string>
