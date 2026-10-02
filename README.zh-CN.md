@@ -46,7 +46,7 @@ AScrcpy 去掉了这个前提：
 |---|---|---|
 | 控制端运行在 | Linux、Windows、macOS | Android 手机或平板 |
 | 准备方式 | 在电脑上安装 | 在手机上安装 |
-| 连接方式 | USB 或 TCP/IP | TCP/IP 连接已启用的 `adbd` |
+| 连接方式 | USB 或 TCP/IP | TCP ADB、Android 11+ 无线调试、USB 主机 |
 | UI 技术栈 | SDL / 原生 | Jetpack Compose、Material 3、WeUI 视觉语言 |
 | 遥控导航 | 电脑键盘与鼠标 | 屏幕悬浮方向键、返回、Home、菜单、音量、电源 |
 | 音频、剪贴板、HID、录制 | 支持 | 尚未实现 |
@@ -56,7 +56,7 @@ AScrcpy 去掉了这个前提：
 
 ## 功能
 
-- 直连 TCP ADB，使用持久化 RSA 身份和设备授权。
+- 支持 TCP ADB、Android 11+ 无线调试配对码或二维码，以及 USB 主机连接，使用持久化 RSA 身份。
 - Shell 执行、sync push，以及多路复用的任意 ADB service。
 - 内置匹配的 scrcpy-server 4.0，随会话启动和停止。
 - 通过 `MediaCodec` 将 H.264 低延迟解码到 `SurfaceView`。
@@ -70,7 +70,7 @@ AScrcpy 去掉了这个前提：
 - 会话状态、错误报告、旋转与 Surface 重建处理，以及完整关闭流程。
 
 ## 界面截图
-主界面通过 TCP ADB 连接，并逐步汇报会话状态。连接成功后预览自动全屏显示，悬浮遥控器用于发送
+主界面可通过 TCP ADB、无线调试和 USB 主机连接，并逐步汇报会话状态。连接成功后预览自动全屏显示，悬浮遥控器用于发送
 
 ![AScrcpy 主界面，包含 ADB 设备卡片](screenshots/main.jpg)
 
@@ -82,9 +82,10 @@ AScrcpy 去掉了这个前提：
 ## 环境要求
 
 - **控制端**为 Android 8.0（API 26）及以上。
-- **目标设备**已开启 USB 调试、已授权本控制端，并且可以通过 TCP 访问。多数设备需要先执行一次
-  `adb tcpip 5555`，电视盒子则通常直接开启无线调试并提供地址和端口。
-- 两台设备处于彼此可达的网络中。当前传输是明文 legacy ADB 连接，请只在可信网络中使用。
+- TCP 模式要求目标已开启 ADB 网络端口，常见做法是 `adb tcpip 5555`。
+- 无线调试要求目标运行 Android 11+，两台设备处于同一可达的 Wi-Fi 网络。配对码模式先使用临时配对端口配对，再输入独立连接端口；二维码模式由本应用展示二维码，目标设备扫码后自动发现并连接。
+- USB 模式要求控制端支持 USB 主机、目标开启 USB 调试，并批准 USB 访问和 RSA 授权。
+- legacy TCP ADB 是明文传输，请只在可信网络使用。
 
 ## 构建
 
@@ -108,9 +109,8 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 ## 使用
 
 1. 把 AScrcpy 安装到控制端手机上。
-2. 在目标设备上开启 USB 调试并通过 TCP 接入（`adb tcpip 5555`），或开启无线调试并记下地址和端口。
-3. 在 **IP address or host** 中填入地址，设置端口，点击 **Connect**。应用会记住该主机，并在下次
-   作为候选项提示。
+2. 选择 TCP、无线配对码、无线二维码或 USB 主机。配对码模式先用临时配对端口配对，再输入独立连接端口；二维码模式由目标设备扫描本应用展示的码；USB 模式请批准权限弹窗。
+3. TCP 模式输入目标地址和端口后点击 **连接**。应用会记住该主机。
 4. 点击 **Test shell** 确认连接，再点击 **Start mirroring**，预览会自动全屏打开。
 5. 直接在预览画面上进行触摸操作，用悬浮遥控器发送导航键。遥控器可以拖到任意位置；松手时若靠近
    左右边缘，则收成小图标停靠。
@@ -136,7 +136,7 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 
 ```kotlin
 dependencies {
-    implementation("com.github.Ernest-su:adb:v0.1.0")
+    implementation("com.github.Ernest-su:adb:v0.2.0")
 }
 ```
 
@@ -150,16 +150,14 @@ client.push(inputStream, "/data/local/tmp/tool.jar")
 val channel = client.open("localabstract:my_service")
 ```
 
-`AdbClient`、`AdbChannel`、`AdbKeyProvider`、`AdbTransport` 及其工厂均为接口。USB 实现可以提供
-另一个 `AdbTransportFactory`，第三方 ADB 库也可以直接实现 `AdbClient`；两种方案都不需要修改
-`app` 或 `scrcpy` 模块。
+ADB 库通过 `AdbClient` 提供 USB 主机和无线 TLS 实现；第三方实现仍可替换该公开外观。
 
 ## 路线图
 
 以下功能尚未实现，且都已按现有模块边界设计：
 
-- Android 11+ TLS 无线调试配对与 mDNS 设备发现。
-- 实现 `AdbTransport` 的 USB Host 传输。
+- 扩展无线发现和设备选择。
+- 支持选择多个 USB 设备并处理插拔。
 - 音频转发与 `AudioTrack` 播放。
 - 剪贴板与设备消息接收循环。
 - 键盘、手柄和更丰富的控制消息。

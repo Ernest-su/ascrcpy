@@ -7,14 +7,14 @@ AScrcpy 让一台 Android 设备作为控制端，通过 ADB 连接另一台 And
 
 当前版本聚焦于最小可用链路：
 
-- 已启用且已授权的 TCP ADB，默认端口 5555；
+- 已启用的 TCP ADB（默认端口 5555）、Android 11+ 无线调试配对与 TLS 连接、USB Host ADB；
 - scrcpy-server 4.0；
 - H.264 视频，不启用音频；
 - `MediaCodec` 硬件解码到 `SurfaceView`；
 - 单点、多点触摸和按键控制消息；
 - Compose 连接、诊断、自动启动预览、沉浸式全屏及错误状态界面。
 
-Android 11+ 无线调试配对、mDNS、USB ADB、音频和剪贴板同步尚不属于已实现范围。
+Android 11+ 无线调试配对码、二维码配对与 NSD 服务发现，以及 USB Host ADB 已接入；音频和剪贴板同步尚未实现。
 
 ## 2. 模块与依赖
 
@@ -56,7 +56,7 @@ app ──► scrcpy ──► adb
 
 ### 独立 `adb` 库
 
-这是由 [独立仓库](https://github.com/Ernest-su/adb) 通过 JitPack 发布的 Android Library；本仓库固定依赖 `v0.1.0`，不再包含其源码模块。公共抽象包括：
+这是由 [独立仓库](https://github.com/Ernest-su/adb) 通过 JitPack 发布的 Android Library；本仓库固定依赖 `v0.2.0`，不再包含其源码模块。公共抽象包括：
 
 | 接口/模型 | 职责 |
 |---|---|
@@ -74,13 +74,15 @@ app ──► scrcpy ──► adb
 DefaultAdbClient
 ├── protocol/AdbPacket        ADB packet 编解码、校验与命令常量
 ├── crypto/FileAdbKeyProvider 2048-bit RSA 身份及持久化
-└── transport/TcpAdbTransport Socket TCP transport
+├── transport/TcpAdbTransport Socket TCP transport
+├── transport/TlsAdbTransport 无线调试 TLS transport
+└── transport/UsbAdbTransport Android USB Host transport
 ```
 
 `DefaultAdbClient` 在一条 transport 上维护后台 reader，并依据 local id 将 `OKAY`、`WRTE`、
 `CLSE` 分发给多个 `AdbChannel`，因此 scrcpy 的 video/control 与 server shell 可以并行存在。
 
-扩展 USB 时只需新增 `UsbAdbTransport : AdbTransport` 并通过 factory 注入。若整体替换成第三方
+USB Host 使用库提供的 `UsbAdbTransport`，App 负责枚举设备与申请 Android USB 权限。无线调试使用配对端口建立信任，再通过独立连接端口进入 TLS ADB 会话。二维码由 App 生成，并通过 Android NSD 发现目标配对和连接服务。若整体替换成第三方
 ADB 库，则实现新的 `AdbClient`，上层 `scrcpy` 和 `app` 无需修改。
 
 ### `:scrcpy`
@@ -120,7 +122,7 @@ checksum 和零值。
 
 ### 3.2 ADB 多路复用
 
-每个逻辑流通过 `OPEN/OKAY/WRTE/CLSE` 在单条 TCP transport 上复用。当前会话通常同时存在：
+每个逻辑流通过 `OPEN/OKAY/WRTE/CLSE` 在单条 ADB transport 上复用。当前会话通常同时存在：
 
 - `shell:CLASSPATH=... app_process ...`：保持 server 进程存活；
 - `localabstract:scrcpy_<scid>`：视频通道；
@@ -236,7 +238,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 - UI 展示 shell 诊断输出时应避免默认执行包含敏感信息的命令。
 - scrcpy wire protocol 是内部协议，server 和 client 必须锁定同一版本。
 - `scrcpy-server-v4.0` 是 scrcpy 官方未修改的 Apache-2.0 二进制；分发要求与复用范围见 `THIRD_PARTY_NOTICES.md`。
-- 当前 TCP ADB 是明文 legacy transport，应该只在可信网络使用；Android 11+ 安全无线配对需要单独实现。
+- legacy TCP ADB 是明文 transport，应只在可信网络使用；Android 11+ 无线调试使用配对和 TLS 连接。
 
 ## 9. 测试策略
 
@@ -262,8 +264,8 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 建议保持现有边界按以下顺序扩展：
 
 1. 为 ADB packet、控制消息和视频 header 增加确定性单元测试；
-2. 增加 Android 11+ pairing/mDNS，并作为新的 ADB 连接实现；
-3. 增加 `UsbAdbTransport`；
+2. 扩展无线发现和设备选择；
+3. 增加多 USB 设备选择与插拔处理；
 4. 增加断线重连、超时与显式 server 日志通道；
 5. 增加音频 channel、解码和 `AudioTrack`；
 6. 增加 device-message reader 和剪贴板同步；

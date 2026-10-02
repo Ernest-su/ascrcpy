@@ -12,9 +12,10 @@ AScrcpy is an Android controller for another Android device. It connects directl
 `adbd`, starts a matching scrcpy server, decodes its H.264 stream with `MediaCodec`, and sends
 control messages from a Compose UI.
 
-The current supported transport is an already-enabled TCP adbd, normally on port 5555. Do not
-claim that Android 11 wireless-debugging pairing or USB ADB is supported until it is implemented
-and tested.
+The app implements TCP adbd, Android 11+ wireless debugging via pairing code or QR,
+and Android USB Host. QR pairing displays a code on the controller for the target to scan.
+Do not claim the USB or wireless flows are device tested until each has been exercised on
+appropriate physical devices.
 
 ## Module boundaries
 
@@ -106,8 +107,8 @@ visible frame contents and touch-coordinate accuracy.
 
 ## Known extension points
 
-- Android 11+ TLS pairing and mDNS discovery.
-- USB host transport implementing `AdbTransport`.
+- Broader wireless discovery and device selection.
+- Multiple USB device selection and attach/detach handling.
 - Audio stream and `AudioTrack` playback.
 - Clipboard/device-message receive loop.
 - Keyboard, gamepad, and richer control messages.

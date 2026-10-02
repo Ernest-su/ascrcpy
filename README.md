@@ -51,7 +51,7 @@ AScrcpy removes that requirement:
 |---|---|---|
 | Controller runs on | Linux, Windows, macOS | Android phone or tablet |
 | Setup | install on a PC | install on a phone |
-| Connection | USB or TCP/IP | TCP/IP to an already-enabled `adbd` |
+| Connection | USB or TCP/IP | TCP ADB, Android 11+ wireless debugging, USB Host |
 | UI toolkit | SDL / native | Jetpack Compose, Material 3, WeUI visual language |
 | Remote navigation | desktop keyboard and mouse | on-screen floating D-pad, back, home, menu, volume, power |
 | Audio, clipboard, HID, recording | yes | not implemented yet |
@@ -61,7 +61,7 @@ Android TV that has no keyboard and no app store.
 
 ## Features
 
-- Direct TCP ADB with a persistent RSA identity and device authorization.
+- TCP ADB, Android 11+ wireless debugging pairing (code or QR), and USB Host with a persistent RSA identity.
 - Shell execution, sync push, and multiplexed arbitrary ADB services.
 - Bundled, matching scrcpy-server 4.0, started and stopped as part of the session.
 - Low-latency H.264 decoding into a `SurfaceView` via `MediaCodec`.
@@ -76,7 +76,7 @@ Android TV that has no keyboard and no app store.
 
 ## Screenshots
 
-The main screen connects over TCP ADB and reports every step of the session. 
+The main screen offers TCP ADB, wireless debugging, and USB Host connections and reports every step of the session.
 
 ![AScrcpy main screen with the ADB device card](screenshots/main.jpg)
 
@@ -89,10 +89,10 @@ an edge as a small icon, or pulled away from the edge into a full panel as shown
 ## Requirements
 
 - Android 8.0 (API 26) or newer on the **controller**.
-- A target device with **USB debugging already enabled and this controller authorized**, reachable over
-  TCP. On most devices that means `adb tcpip 5555` once, or a TV box with wireless debugging turned on.
-- Both devices on a network the two of them can reach. The current transport is a plaintext legacy
-  ADB connection: use it on a network you trust.
+- For TCP ADB, a target reachable at an already-enabled ADB port (often `adb tcpip 5555`).
+- For wireless debugging, Android 11+ on the target and both devices on the same reachable Wi-Fi network. Pair using the temporary pairing address/port and six-digit code, then connect using the separate connection port. For QR pairing, show the QR code in AScrcpy and scan it from the target's Wireless debugging settings; the app discovers and connects to the target.
+- For USB, USB Host support on the controller, USB debugging on the target, a compatible cable, and approval of USB access and RSA authorization prompts.
+- Legacy TCP ADB is plaintext; use it on a trusted network.
 
 ## Build
 
@@ -116,10 +116,8 @@ Run the instrumented tests on a connected device:
 ## Usage
 
 1. Install AScrcpy on the controller phone.
-2. On the target device, enable USB debugging and connect it over TCP (`adb tcpip 5555`), or enable
-   wireless debugging and note its address and port.
-3. Enter the address in **IP address or host**, set the port, and tap **Connect**. The app remembers
-   the host and offers it as a suggestion next time.
+2. Select TCP, wireless pairing code, wireless QR, or USB Host. For wireless code, pair with the temporary pairing port first, then enter the separate connection port and tap **Connect**. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
+3. For TCP, enter the target address and port, then tap **Connect**. The app remembers the host.
 4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
    full screen automatically.
 5. Use the preview for touch input and the floating remote for navigation keys. Drag the remote
@@ -148,7 +146,7 @@ dependency-light ADB host implementation. Add `maven { url = uri("https://jitpac
 
 ```kotlin
 dependencies {
-    implementation("com.github.Ernest-su:adb:v0.1.0")
+    implementation("com.github.Ernest-su:adb:v0.2.0")
 }
 ```
 
@@ -163,15 +161,14 @@ val channel = client.open("localabstract:my_service")
 ```
 
 `AdbClient`, `AdbChannel`, `AdbKeyProvider`, `AdbTransport`, and their factories are all interfaces.
-A USB implementation can supply another `AdbTransportFactory`, and a third-party ADB library can
-implement `AdbClient` directly; neither requires a change in the `app` or `scrcpy` modules.
+The library provides USB Host and wireless TLS implementations behind `AdbClient`; a third-party ADB library can implement the facade without changing `scrcpy`.
 
 ## Roadmap
 
 Not implemented yet, and all of them are designed to fit the existing module boundaries:
 
-- Android 11+ TLS wireless-debugging pairing and mDNS device discovery.
-- USB host transport implementing `AdbTransport`.
+- Broader wireless discovery and device selection.
+- Multiple USB device selection and attach/detach handling.
 - Audio forwarding and `AudioTrack` playback.
 - Clipboard and device-message receive loop.
 - Keyboard, gamepad, and richer control messages.
