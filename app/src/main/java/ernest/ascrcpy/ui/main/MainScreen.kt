@@ -118,7 +118,8 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::injectKey, viewModel::deleteHost, modifier,
     viewModel::setMethod, viewModel::setPairingHost, viewModel::setPairingPort,
     viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
-    viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress)
+    viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress, viewModel::prepareWirelessPairing,
+    viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice)
 }
 
 @Composable
@@ -146,6 +147,9 @@ internal fun MainScreen(
   onStopQr: () -> Unit = {},
   onConnectUsb: () -> Unit = {},
   onTailcatAddressChange: (String) -> Unit = {},
+  onPrepareWirelessPairing: () -> Unit = {},
+  onReconnectSavedWireless: () -> Unit = {},
+  onSelectSavedWireless: (String) -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   val remoteState = rememberSaveable(saver = FloatingRemoteStateSaver) { FloatingRemoteState() }
@@ -161,7 +165,7 @@ internal fun MainScreen(
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
       onProbe, onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier,
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
-      onTailcatAddressChange)
+      onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless)
     if (state.connected) {
       FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
@@ -207,6 +211,9 @@ private fun NormalScreen(
   onStartQr: () -> Unit,
   onConnectUsb: () -> Unit,
   onTailcatAddressChange: (String) -> Unit,
+  onPrepareWirelessPairing: () -> Unit,
+  onReconnectSavedWireless: () -> Unit,
+  onSelectSavedWireless: (String) -> Unit,
 ) {
   Scaffold(modifier.fillMaxSize()) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
@@ -254,8 +261,7 @@ private fun NormalScreen(
               label = { Text(stringResource(R.string.tailcat_remote_port)) },
               singleLine = true, enabled = !state.busy && !state.connected)
           }
-          if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.WIRELESS_CODE ||
-            (state.connected && state.method != ConnectionMethod.TAILCAT)) {
+          if (state.method == ConnectionMethod.TCP && !state.connected) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
               HostHistoryField(state, onHostChange, onDeleteHost, Modifier.weight(1f))
               Spacer(Modifier.width(12.dp))
@@ -263,7 +269,24 @@ private fun NormalScreen(
                 singleLine = true, enabled = !state.busy && !state.connected)
             }
           }
-          if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected) {
+          if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected &&
+            state.savedWirelessDevices.isNotEmpty()) {
+            Text(stringResource(R.string.saved_wireless_devices), style = MaterialTheme.typography.titleMedium)
+            state.savedWirelessDevices.forEach { device ->
+              Row(Modifier.fillMaxWidth().clickable(enabled = !state.busy) {
+                onSelectSavedWireless(device.guid)
+              }, verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(selected = state.selectedWirelessGuid == device.guid,
+                  onClick = { onSelectSavedWireless(device.guid) }, enabled = !state.busy)
+                Column(Modifier.weight(1f)) {
+                  Text(device.name)
+                  Text(device.routeHost, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+              }
+            }
+          }
+          if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected && !state.wirelessCodePaired) {
             Text(stringResource(R.string.pairing_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(state.pairingHost, onPairingHostChange, Modifier.fillMaxWidth(),
               label = { Text(stringResource(R.string.pairing_host)) }, singleLine = true)
@@ -274,6 +297,19 @@ private fun NormalScreen(
                 label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true)
             }
             OutlinedButton(onPair, enabled = !state.busy) { Text(stringResource(R.string.pair_wireless)) }
+          }
+          if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected && state.wirelessCodePaired) {
+            Text(stringResource(R.string.wireless_connection_description, state.pairingHost),
+              color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.wireless_connection_port)) },
+              singleLine = true, enabled = !state.busy)
+            OutlinedButton(onClick = onReconnectSavedWireless, enabled = !state.busy) {
+              Text(stringResource(R.string.connect_saved_wireless_device))
+            }
+            TextButton(onClick = onPrepareWirelessPairing, enabled = !state.busy) {
+              Text(stringResource(R.string.pair_different_wireless_device))
+            }
           }
           if (state.method == ConnectionMethod.WIRELESS_QR && !state.connected) {
             Text(stringResource(R.string.qr_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -290,7 +326,8 @@ private fun NormalScreen(
               Button(onStartMirroring, enabled = !state.busy && state.scrcpyState !is ScrcpyState.Streaming) { Text(stringResource(R.string.start_mirroring)) }
               OutlinedButton(onDisconnect, enabled = !state.busy) { Text(stringResource(R.string.disconnect)) }
             } else {
-              if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.TAILCAT || state.method == ConnectionMethod.WIRELESS_CODE)
+              if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.TAILCAT ||
+                (state.method == ConnectionMethod.WIRELESS_CODE && state.wirelessCodePaired))
               Button(onConnect, enabled = !state.busy &&
                 (if (state.method == ConnectionMethod.TAILCAT) state.tailcatAddress.isNotBlank() else state.host.isNotBlank())) {
                 if (state.busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }

@@ -19,6 +19,11 @@
     <string name="pairing_port">Pairing port</string>
     <string name="pairing_code">Six-digit code</string>
     <string name="pair_wireless">Pair with code</string>
+    <string name="wireless_connection_description">Paired with %1$s. Enter the separate connection port shown on the Wireless debugging screen.</string>
+    <string name="wireless_connection_port">Wireless debugging connection port</string>
+    <string name="pair_different_wireless_device">Pair a different device</string>
+    <string name="connect_saved_wireless_device">Find and connect saved device</string>
+    <string name="saved_wireless_devices">Paired wireless devices</string>
     <string name="qr_description">On the target, open Wireless debugging → Pair device with QR code and scan this code. Both devices must share a Wi-Fi network.</string>
     <string name="pair_qr">Show pairing QR code</string>
     <string name="qr_title">Pair wireless debugging</string>
@@ -29,9 +34,13 @@
     <string name="log_usb_missing">No USB ADB device found</string>
     <string name="log_invalid_pairing">Enter a pairing host, port, and six-digit code</string>
     <string name="log_pairing">Pairing with wireless debugging device…</string>
-    <string name="log_paired">Paired (%1$s). Enter the separate connection port and connect.</string>
     <string name="log_finding_connection">Paired (%1$s). Finding the connection service…</string>
     <string name="log_connection_not_found">Paired (%1$s). Connection service not found; enter its port manually.</string>
+    <string name="log_auto_connection_failed">Paired, but automatic connection failed: %1$s. Check or enter the connection port and try again.</string>
+    <string name="log_reconnecting_saved_wireless">Looking for the saved wireless debugging device…</string>
+    <string name="log_saved_wireless_available">Saved wireless debugging device loaded. Connect when ready.</string>
+    <string name="log_connecting_saved_wireless">Saved wireless debugging device found. Connecting…</string>
+    <string name="log_saved_wireless_not_found">Saved wireless debugging device was not found. Keep Wireless debugging enabled, or check the connection port.</string>
     <string name="log_discovery_failed">Wireless discovery failed %1$s</string>
     <string name="log_qr_waiting">Waiting for the target to scan the QR code…</string>
     <string name="ip_address_or_host">IP address or host</string>
@@ -73,6 +82,7 @@
     <string name="log_opening_connection">Opening ADB connection…</string>
     <string name="log_connected">Connected\n%1$s</string>
     <string name="log_disconnected">Disconnected</string>
+    <string name="log_disconnect_failed">Disconnected locally, but cleanup reported an error: %1$s</string>
     <string name="log_running_probe">Running device probe…</string>
     <string name="log_starting_scrcpy">Installing and starting scrcpy-server 4.0…</string>
 </resources>

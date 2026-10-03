@@ -52,6 +52,68 @@ class MainScreenTest {
   }
 
   @Test
+  fun wirelessCodeShowsOnlyPairingFieldsBeforePairing() {
+    composeTestRule.setContent {
+      MainScreen(MainUiState(method = ConnectionMethod.WIRELESS_CODE), {}, {}, {}, {}, {}, {}, {}, {},
+        {}, { _, _, _, _, _ -> }, {}, {})
+    }
+
+    composeTestRule.onNodeWithText(text(R.string.pairing_host)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.pairing_port)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.pairing_code)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.ip_address_or_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.port)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.connect)).assertDoesNotExist()
+  }
+
+  @Test
+  fun wirelessCodeShowsOnlyConnectionPortAfterPairing() {
+    composeTestRule.setContent {
+      MainScreen(MainUiState(method = ConnectionMethod.WIRELESS_CODE, pairingHost = "192.168.1.20",
+        wirelessCodePaired = true), {}, {}, {}, {}, {}, {}, {}, {},
+        {}, { _, _, _, _, _ -> }, {}, {})
+    }
+
+    composeTestRule.onNodeWithText(text(R.string.wireless_connection_port)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.pairing_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.pairing_port)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.pairing_code)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.ip_address_or_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.connect)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.pair_different_wireless_device)).assertExists()
+    composeTestRule.onNodeWithText(text(R.string.connect_saved_wireless_device)).assertExists()
+  }
+
+  @Test
+  fun usbShowsNoNetworkFields() {
+    composeTestRule.setContent {
+      MainScreen(MainUiState(method = ConnectionMethod.USB), {}, {}, {}, {}, {}, {}, {}, {},
+        {}, { _, _, _, _, _ -> }, {}, {})
+    }
+
+    composeTestRule.onNodeWithText(text(R.string.ip_address_or_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.port)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.pairing_host)).assertDoesNotExist()
+  }
+
+  @Test
+  fun savedWirelessDevicesCanBeSelectedByName() {
+    var selected: String? = null
+    composeTestRule.setContent {
+      MainScreen(MainUiState(method = ConnectionMethod.WIRELESS_CODE, wirelessCodePaired = true,
+        pairingHost = "192.168.1.20", savedWirelessDevices = listOf(
+          SavedWirelessDevice("guid-phone", "Living room phone", "192.168.1.20", "37123"),
+          SavedWirelessDevice("guid-tv", "Bedroom TV", "100.64.1.8", "38234"),
+        ), selectedWirelessGuid = "guid-phone"), {}, {}, {}, {}, {}, {}, {}, {},
+        {}, { _, _, _, _, _ -> }, {}, {}, onSelectSavedWireless = { selected = it })
+    }
+
+    composeTestRule.onNodeWithText("Living room phone").assertExists()
+    composeTestRule.onNodeWithText("Bedroom TV").performClick()
+    composeTestRule.runOnIdle { assertEquals("guid-tv", selected) }
+  }
+
+  @Test
   fun savedHostCanBeDeletedFromSuggestions() {
     var deletedHost: String? = null
     composeTestRule.setContent {

@@ -19,6 +19,11 @@
     <string name="pairing_port">配对端口</string>
     <string name="pairing_code">六位配对码</string>
     <string name="pair_wireless">使用配对码配对</string>
+    <string name="wireless_connection_description">已与 %1$s 配对。请输入“无线调试”页面显示的独立连接端口。</string>
+    <string name="wireless_connection_port">无线调试连接端口</string>
+    <string name="pair_different_wireless_device">配对其他设备</string>
+    <string name="connect_saved_wireless_device">查找并连接已保存设备</string>
+    <string name="saved_wireless_devices">已配对的无线设备</string>
     <string name="qr_description">在目标设备打开“无线调试 → 使用二维码配对设备”并扫描此码。两台设备须连接同一 Wi-Fi 网络。</string>
     <string name="pair_qr">展示配对二维码</string>
     <string name="qr_title">配对无线调试</string>
@@ -29,9 +34,13 @@
     <string name="log_usb_missing">未找到 USB ADB 设备</string>
     <string name="log_invalid_pairing">请输入配对地址、端口和六位配对码</string>
     <string name="log_pairing">正在配对无线调试设备…</string>
-    <string name="log_paired">已配对（%1$s）。请输入独立的连接端口并连接。</string>
     <string name="log_finding_connection">已配对（%1$s）。正在查找连接服务…</string>
     <string name="log_connection_not_found">已配对（%1$s）。未找到连接服务，请手动输入连接端口。</string>
+    <string name="log_auto_connection_failed">配对成功，但自动连接失败：%1$s。请检查或输入连接端口后重试。</string>
+    <string name="log_reconnecting_saved_wireless">正在查找已保存的无线调试设备…</string>
+    <string name="log_saved_wireless_available">已加载保存的无线调试设备，请按需连接。</string>
+    <string name="log_connecting_saved_wireless">已找到保存的无线调试设备，正在连接…</string>
+    <string name="log_saved_wireless_not_found">未找到已保存的无线调试设备。请保持无线调试开启，或检查连接端口。</string>
     <string name="log_discovery_failed">无线发现失败 %1$s</string>
     <string name="log_qr_waiting">等待目标设备扫描二维码…</string>
     <string name="ip_address_or_host">IP 地址或主机名</string>
@@ -73,6 +82,7 @@
     <string name="log_opening_connection">正在建立 ADB 连接…</string>
     <string name="log_connected">已连接\n%1$s</string>
     <string name="log_disconnected">已断开连接</string>
+    <string name="log_disconnect_failed">本地连接已断开，但清理时出现错误：%1$s</string>
     <string name="log_running_probe">正在运行设备探测…</string>
     <string name="log_starting_scrcpy">正在安装并启动 scrcpy-server 4.0…</string>
 </resources>

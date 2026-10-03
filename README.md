@@ -117,7 +117,7 @@ Run the instrumented tests on a connected device:
 ## Usage
 
 1. Install AScrcpy on the controller phone.
-2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, pair with the temporary pairing port first, then enter the separate connection port and tap **Connect**. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
+2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, enter the temporary pairing endpoint and code; after pairing, AScrcpy discovers the separate connection endpoint and connects automatically. Paired devices are saved by GUID with their reported model name and route address. On a later launch, select a device from the paired-device list and press **Find and connect saved device**; AScrcpy never reconnects merely because it was opened. An explicitly entered Tailscale address is retained to keep that route; ordinary Wi-Fi pairing uses the address resolved by the matching NSD service. If mDNS discovery or automatic connection fails, enter or confirm the connection port and tap **Connect**. Use **Pair a different device** to add another device. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
 3. For TCP, enter the target address and port; for Tailcat, enter the shared address and remote ADB port. Tap **Connect**. The app remembers TCP hosts, but does not save Tailcat addresses.
 4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
    full screen automatically.
@@ -147,7 +147,7 @@ dependency-light ADB host implementation. Add `maven { url = uri("https://jitpac
 
 ```kotlin
 dependencies {
-    implementation("com.github.Ernest-su:adb:v0.2.0")
+    implementation("com.github.Ernest-su:adb:v0.2.1")
 }
 ```
 

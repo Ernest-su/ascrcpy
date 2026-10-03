@@ -20,10 +20,21 @@ internal class QrPairing {
     }
 }
 
-/** Resolves the scanned phone's pairing service and available wireless connection services. */
-internal class QrPairingDiscovery(
+internal fun isConnectionServiceForGuid(serviceName: String, guid: String): Boolean =
+    guid.isNotBlank() && serviceName.contains(guid, ignoreCase = true)
+
+internal fun String.isTailscaleAddress(): Boolean {
+    val normalized = trim().removePrefix("[").removeSuffix("]").lowercase()
+    if (normalized.startsWith("fd7a:115c:a1e0:")) return true
+    val octets = normalized.split('.').mapNotNull(String::toIntOrNull)
+    return octets.size == 4 && octets.all { it in 0..255 } &&
+        octets[0] == 100 && octets[1] in 64..127
+}
+
+/** Resolves an optional QR pairing service and available wireless ADB connection services. */
+internal class WirelessAdbDiscovery(
     context: Context,
-    private val serviceName: String,
+    private val pairingServiceName: String?,
     private val onPairing: (ResolvedService) -> Unit,
     private val onConnection: (ResolvedService) -> Unit,
     private val onError: (Int?) -> Unit,
@@ -44,7 +55,7 @@ internal class QrPairingDiscovery(
         if (active) return
         active = true
         multicastLock.acquire()
-        discover(PAIRING_TYPE)
+        if (pairingServiceName != null) discover(PAIRING_TYPE)
         discover(CONNECTION_TYPE)
     }
 
@@ -74,7 +85,7 @@ internal class QrPairingDiscovery(
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 main.post {
                     if (!active) return@post
-                    if (type == PAIRING_TYPE && serviceInfo.serviceName != serviceName) return@post
+                    if (type == PAIRING_TYPE && serviceInfo.serviceName != pairingServiceName) return@post
                     val key = "$type/${serviceInfo.serviceName}"
                     if (seen.add(key)) {
                         pending.add(key to serviceInfo)

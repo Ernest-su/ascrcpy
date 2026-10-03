@@ -110,7 +110,7 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 ## 使用
 
 1. 把 AScrcpy 安装到控制端手机上。
-2. 选择 TCP、Tailcat、无线配对码、无线二维码或 USB 主机。配对码模式先用临时配对端口配对，再输入独立连接端口；二维码模式由目标设备扫描本应用展示的码；USB 模式请批准权限弹窗。
+2. 选择 TCP、Tailcat、无线配对码、无线二维码或 USB 主机。配对码模式输入临时配对端点和配对码后，AScrcpy 会发现独立连接端点并自动连接；应用按 GUID 保存多个已配对设备及其上报的型号名称和路由地址。下次启动时从已配对设备列表选择目标，再点击“查找并连接已保存设备”；仅打开 App 不会自动重连。明确输入 Tailscale 地址时保留该地址以维持 Tailscale 路径，普通 Wi-Fi 配对则使用匹配 NSD 服务解析出的地址。若 mDNS 发现或自动连接失败，再检查或手动输入连接端口并点击“连接”；可通过“配对其他设备”新增设备。二维码模式由目标设备扫描本应用展示的码；USB 模式请批准权限弹窗。
 3. TCP 模式输入目标地址和端口；Tailcat 模式输入共享地址和远端 ADB 端口。点击 **连接**。应用会记住 TCP 主机，但不保存 Tailcat 地址。
 4. 点击 **Test shell** 确认连接，再点击 **Start mirroring**，预览会自动全屏打开。
 5. 直接在预览画面上进行触摸操作，用悬浮遥控器发送导航键。遥控器可以拖到任意位置；松手时若靠近
@@ -137,7 +137,7 @@ android run --device=<serial> --activity=ernest.ascrcpy.MainActivity \
 
 ```kotlin
 dependencies {
-    implementation("com.github.Ernest-su:adb:v0.2.0")
+    implementation("com.github.Ernest-su:adb:v0.2.1")
 }
 ```
 
