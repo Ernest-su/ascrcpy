@@ -82,7 +82,7 @@ DefaultAdbClient
 `DefaultAdbClient` 在一条 transport 上维护后台 reader，并依据 local id 将 `OKAY`、`WRTE`、
 `CLSE` 分发给多个 `AdbChannel`，因此 scrcpy 的 video/control 与 server shell 可以并行存在。
 
-USB Host 使用库提供的 `UsbAdbTransport`，App 负责枚举设备与申请 Android USB 权限。无线调试使用配对端口建立信任，再通过独立连接端口进入 TLS ADB 会话。二维码由 App 生成，并通过 Android NSD 发现目标配对和连接服务。配对码成功后同样按配对返回的 GUID 匹配 `_adb-tls-connect._tcp` 服务并自动连接；明确输入 Tailscale 地址时连接主机保留该地址，普通 Wi-Fi 配对则使用匹配服务解析出的地址，连接端口始终取自 NSD。发现或自动连接失败时回退到手动连接端口输入。`adb` v0.2.1 的无线 TLS 证书与 AOSP 字段保持一致，并允许调用方把 TCP、配对和 TLS socket 绑定到指定 Android `Network`。若整体替换成第三方
+USB Host 使用库提供的 `UsbAdbTransport`，App 负责枚举设备与申请 Android USB 权限。无线调试使用配对端口建立信任，再通过独立连接端口进入 TLS ADB 会话。二维码由 App 生成，并通过 Android NSD 发现目标配对和连接服务。配对码和二维码配对成功后都按返回的 GUID 匹配 `_adb-tls-connect._tcp` 服务并自动连接；明确输入 Tailscale 地址时连接主机保留该地址，普通 Wi-Fi 配对则使用匹配服务解析出的地址，连接端口始终取自 NSD。发现或自动连接失败时回退到手动连接端口输入。`adb` v0.2.1 的无线 TLS 证书与 AOSP 字段保持一致，并允许调用方把 TCP、配对和 TLS socket 绑定到指定 Android `Network`。若整体替换成第三方
 ADB 库，则实现新的 `AdbClient`，上层 `scrcpy` 和 `app` 无需修改。
 
 App 按 GUID 保存多个无线设备的目标端上报名称、配对/路由地址和最近发现端口。ADB 私钥仍由库保存在

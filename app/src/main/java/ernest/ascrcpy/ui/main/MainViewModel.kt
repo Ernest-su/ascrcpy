@@ -401,7 +401,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
               val connection = withTimeoutOrNull(30_000) {
                 while (true) {
                   val candidate = connections.receive()
-                  if (isConnectionServiceForGuid(candidate.name, guid) || candidate.host == service.host)
+                  if (isConnectionServiceForGuid(candidate.name, guid))
                     return@withTimeoutOrNull candidate
                 }
                 @Suppress("UNREACHABLE_CODE")
@@ -417,7 +417,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val target = client.connectWireless(endpoint)
                 shouldMirror = true
                 saveWirelessPairing(guid, service.host, connection.port, deviceName(target, service.host))
-                form.update { copy(host = connection.host, port = connection.port.toString(),
+                form.update { copy(host = endpoint.host, port = connection.port.toString(),
                   console = string(R.string.log_connected, target.banner)) }
                 scheduleMirroring()
               }

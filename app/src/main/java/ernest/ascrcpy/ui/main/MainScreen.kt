@@ -289,12 +289,12 @@ private fun NormalScreen(
           if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected && !state.wirelessCodePaired) {
             Text(stringResource(R.string.pairing_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(state.pairingHost, onPairingHostChange, Modifier.fillMaxWidth(),
-              label = { Text(stringResource(R.string.pairing_host)) }, singleLine = true)
+              label = { Text(stringResource(R.string.pairing_host)) }, singleLine = true, enabled = !state.busy)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
               OutlinedTextField(state.pairingPort, onPairingPortChange, Modifier.weight(1f),
-                label = { Text(stringResource(R.string.pairing_port)) }, singleLine = true)
+                label = { Text(stringResource(R.string.pairing_port)) }, singleLine = true, enabled = !state.busy)
               OutlinedTextField(state.pairingCode, onPairingCodeChange, Modifier.weight(1f),
-                label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true)
+                label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true, enabled = !state.busy)
             }
             OutlinedButton(onPair, enabled = !state.busy) { Text(stringResource(R.string.pair_wireless)) }
           }
