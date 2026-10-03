@@ -70,6 +70,10 @@ Android TV that has no keyboard and no app store.
 - Draggable floating remote that snaps to an edge; drag it away from the edge and it opens into a
   full panel. One layout, scaled to fit whatever space is available, so it stays usable in landscape.
 - Long-press the docked icon to switch between the full-screen preview and the main screen.
+- Use the expanded remote's top-left button for the same full-screen switch.
+- Open Device management from the connected home screen to run shell commands, view installed apps,
+  and browse remote files. Files and folders can be downloaded to a selected local directory;
+  remote deletion requires confirmation.
 - Persistent, searchable connection-host history with one-tap deletion.
 - English and Simplified Chinese, including Android 13 per-app language selection.
 - Session state, error reporting, rotation and surface-recreation handling, and clean shutdown.

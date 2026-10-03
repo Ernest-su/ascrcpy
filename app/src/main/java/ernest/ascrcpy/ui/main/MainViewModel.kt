@@ -76,6 +76,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     ?.split('\n')?.filter(String::isNotBlank)?.distinct().orEmpty()
   private val savedWirelessDevices = loadSavedWirelessDevices()
   private val client: AdbClient = DefaultAdbClient.factory(application).create()
+  internal val deviceClient: AdbClient get() = client
   private val scrcpy = ScrcpyClient(client)
   private val tailcat = TailcatForwarder(application)
   private val usbManager = application.getSystemService(Context.USB_SERVICE) as UsbManager
@@ -471,16 +472,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           string(R.string.log_disconnect_failed, it.message ?: string(R.string.unknown_error))
         } ?: string(R.string.log_disconnected)) }
       }
-    }
-  }
-
-  fun probe() {
-    viewModelScope.launch {
-      form.update { copy(busy = true, console = string(R.string.log_running_probe)) }
-      runCatching { client.shell("getprop ro.product.model; getprop ro.build.version.release; id") }
-        .onSuccess { result -> form.update { copy(console = result.text().trim()) } }
-        .onFailure { error -> form.update { copy(console = error.stackTraceToString()) } }
-      form.update { copy(busy = false) }
     }
   }
 

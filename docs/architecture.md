@@ -12,7 +12,7 @@ AScrcpy 让一台 Android 设备作为控制端，通过 ADB 连接另一台 And
 - H.264 视频，不启用音频；
 - `MediaCodec` 硬件解码到 `SurfaceView`；
 - 单点、多点触摸和按键控制消息；
-- Compose 连接、诊断、自动启动预览、沉浸式全屏及错误状态界面。
+- Compose 连接、诊断、设备管理、自动启动预览、沉浸式全屏及错误状态界面。
 
 Android 11+ 无线调试配对码、二维码配对与 NSD 服务发现，以及 USB Host ADB 已接入；音频和剪贴板同步尚未实现。
 
@@ -50,6 +50,7 @@ app ──► scrcpy ──► adb
 - `MainActivity`：Activity 与 Compose 根节点；
 - `MainViewModel`：组合 ADB 与 scrcpy 状态，持有会话生命周期；
 - `MainScreen`：目标地址输入、连接诊断、视频 Surface、全屏/刘海区适配、触摸坐标映射和悬浮遥控器；
+- `ui/device`：共用当前 ADB 会话的命令、应用列表与文件浏览页面；文件下载使用系统目录选择器，目录读取通过公共 `AdbChannel` 的 `sync: LIST` 服务完成；
 - `assets/scrcpy-server-v4.0`：与客户端协议严格匹配的服务端二进制。
 
 `app` 是组合根，只负责调用库接口，不应实现 ADB framing 或 scrcpy 二进制协议。
@@ -228,7 +229,7 @@ Idle → InstallingServer → StartingServer → ConnectingStreams → Streaming
 
 连接成功后 `MainViewModel` 会在视频 Surface 就绪时自动启动 scrcpy。UI 默认进入隐藏系统栏的
 沉浸式预览；悬浮遥控器可整体拖动，靠近屏幕两侧时吸附并收缩为遥控器图标，从边缘拖出后恢复完整面板。
-面板提供方向/确定/返回/Home/菜单、音量加减和红色电源按键；长按收缩后的图标可在全屏预览与普通主界面之间切换。
+面板提供方向/确定/返回/Home/菜单、音量加减和红色电源按键；长按收缩后的图标或点击展开后左上角按钮，可在全屏预览与普通主界面之间切换。
 视频可延伸到屏幕裁切区，但悬浮控件始终受 safe-drawing insets 约束。
 
 控制端旋转和窗口尺寸变化由 `MainActivity` 原地处理，不能仅因配置变化重建 Activity 并关闭连接。

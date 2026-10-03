@@ -162,6 +162,8 @@ class MainScreenTest {
     composeTestRule.onNodeWithContentDescription(text(R.string.power)).assertExists()
     composeTestRule.onNodeWithContentDescription(text(R.string.volume_down)).assertExists()
     composeTestRule.onNodeWithContentDescription(text(R.string.volume_up)).assertExists()
+    composeTestRule.onNodeWithContentDescription(text(R.string.toggle_fullscreen)).performClick()
+    composeTestRule.onNodeWithText(text(R.string.device_management)).assertExists()
   }
 
   @Test
