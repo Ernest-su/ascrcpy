@@ -160,24 +160,57 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
     }
 
     pendingAppAction?.let { (app, action) ->
-        val clearing = action == AppAction.CLEAR_DATA
+        val titleRes = when (action) {
+            AppAction.CLEAR_DATA -> R.string.clear_app_confirm_title
+            AppAction.DISABLE -> R.string.disable_app_confirm_title
+            AppAction.ENABLE -> R.string.enable_app_confirm_title
+            AppAction.UNINSTALL -> R.string.uninstall_app_confirm_title
+        }
+        val messageRes = when (action) {
+            AppAction.CLEAR_DATA -> R.string.clear_app_confirm
+            AppAction.DISABLE -> R.string.disable_app_confirm
+            AppAction.ENABLE -> R.string.enable_app_confirm
+            AppAction.UNINSTALL -> R.string.uninstall_app_confirm
+        }
+        val labelRes = when (action) {
+            AppAction.CLEAR_DATA -> R.string.clear_app_data
+            AppAction.DISABLE -> R.string.disable_app
+            AppAction.ENABLE -> R.string.enable_app
+            AppAction.UNINSTALL -> R.string.uninstall_app
+        }
         AlertDialog(
             onDismissRequest = { pendingAppAction = null },
-            title = { Text(stringResource(if (clearing) R.string.clear_app_confirm_title else R.string.uninstall_app_confirm_title)) },
-            text = { Text(stringResource(if (clearing) R.string.clear_app_confirm else R.string.uninstall_app_confirm,
-                app.name, app.packageName)) },
+            title = { Text(stringResource(titleRes)) },
+            text = { Text(stringResource(messageRes, app.packageName)) },
             confirmButton = {
                 TextButton(onClick = {
                     pendingAppAction = null
                     runOperation {
-                        status = context.getString(if (clearing) R.string.status_clearing_app else R.string.status_uninstalling_app, app.packageName)
+                        status = context.getString(when (action) {
+                            AppAction.CLEAR_DATA -> R.string.status_clearing_app
+                            AppAction.DISABLE -> R.string.status_disabling_app
+                            AppAction.ENABLE -> R.string.status_enabling_app
+                            AppAction.UNINSTALL -> R.string.status_uninstalling_app
+                        }, app.packageName)
                         manager.manageApp(action, app)
-                        if (!clearing) apps = apps.filterNot { it.packageName == app.packageName }
-                        status = context.getString(if (clearing) R.string.status_app_cleared else R.string.status_app_uninstalled, app.packageName)
+                        apps = when (action) {
+                            AppAction.UNINSTALL -> apps.filterNot { it.packageName == app.packageName }
+                            AppAction.DISABLE, AppAction.ENABLE -> apps.map {
+                                if (it.packageName == app.packageName) it.copy(enabled = action == AppAction.ENABLE) else it
+                            }
+                            AppAction.CLEAR_DATA -> apps
+                        }
+                        status = context.getString(when (action) {
+                            AppAction.CLEAR_DATA -> R.string.status_app_cleared
+                            AppAction.DISABLE -> R.string.status_app_disabled
+                            AppAction.ENABLE -> R.string.status_app_enabled
+                            AppAction.UNINSTALL -> R.string.status_app_uninstalled
+                        }, app.packageName)
                     }
                 }, enabled = isConnected && !loading,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                    Text(stringResource(if (clearing) R.string.clear_app_data else R.string.uninstall_app))
+                    colors = ButtonDefaults.textButtonColors(contentColor =
+                        if (action == AppAction.ENABLE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)) {
+                    Text(stringResource(labelRes))
                 }
             },
             dismissButton = { TextButton(onClick = { pendingAppAction = null }) { Text(stringResource(R.string.cancel)) } },
@@ -258,24 +291,32 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
                           Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(shape = MaterialTheme.shapes.medium,
                                 color = MaterialTheme.colorScheme.surfaceVariant) {
-                                Text(app.name.take(1).uppercase(), Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+                                Text(app.packageName.substringAfterLast('.').take(1).uppercase(),
+                                    Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(app.name, fontWeight = FontWeight.SemiBold)
-                                Text(app.packageName, style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                Text(app.packageName, fontWeight = FontWeight.SemiBold,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(if (app.system) stringResource(R.string.app_system) else stringResource(R.string.app_user),
+                                Text(if (!app.enabled) stringResource(R.string.app_disabled)
+                                    else if (app.system) stringResource(R.string.app_system) else stringResource(R.string.app_user),
                                     style = MaterialTheme.typography.labelSmall)
                             }
                           }
                           Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                              TextButton(onClick = { pendingAppAction = app to AppAction.CLEAR_DATA }, enabled = isConnected && !loading,
+                              TextButton(onClick = { pendingAppAction = app to AppAction.CLEAR_DATA }, modifier = Modifier.weight(1f),
+                                  enabled = isConnected && !loading,
                                   colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                   Text(stringResource(R.string.clear_app_data))
                               }
-                              TextButton(onClick = { pendingAppAction = app to AppAction.UNINSTALL }, enabled = isConnected && !loading,
+                              TextButton(onClick = { pendingAppAction = app to if (app.enabled) AppAction.DISABLE else AppAction.ENABLE },
+                                  modifier = Modifier.weight(1f), enabled = isConnected && !loading,
+                                  colors = ButtonDefaults.textButtonColors(contentColor =
+                                      if (app.enabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) {
+                                  Text(stringResource(if (app.enabled) R.string.disable_app else R.string.enable_app))
+                              }
+                              TextButton(onClick = { pendingAppAction = app to AppAction.UNINSTALL }, modifier = Modifier.weight(1f),
+                                  enabled = isConnected && !loading,
                                   colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                   Text(stringResource(R.string.uninstall_app))
                               }

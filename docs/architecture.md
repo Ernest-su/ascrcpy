@@ -50,7 +50,7 @@ app ──► scrcpy ──► adb
 - `MainActivity`：Activity 与 Compose 根节点；
 - `MainViewModel`：组合 ADB 与 scrcpy 状态，持有会话生命周期；
 - `MainScreen`：目标地址输入、连接诊断、视频 Surface、全屏/刘海区适配、触摸坐标映射和悬浮遥控器；
-- `ui/device`：共用当前 ADB 会话的命令、应用管理与文件浏览页面；应用数据清空和当前用户卸载通过包管理器命令执行并校验结果，文件下载使用系统目录选择器，目录读取通过公共 `AdbChannel` 的 `sync: LIST` 服务完成；
+- `ui/device`：共用当前 ADB 会话的命令、应用管理与文件浏览页面；应用列表显示包名及当前用户的停用状态，数据清空、停用/启用和当前用户卸载通过包管理器命令执行并校验结果，文件下载使用系统目录选择器，目录读取通过公共 `AdbChannel` 的 `sync: LIST` 服务完成；
 - `assets/scrcpy-server-v4.0`：与客户端协议严格匹配的服务端二进制。
 
 `app` 是组合根，只负责调用库接口，不应实现 ADB framing 或 scrcpy 二进制协议。

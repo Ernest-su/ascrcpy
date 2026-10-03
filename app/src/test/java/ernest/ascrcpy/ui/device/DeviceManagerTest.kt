@@ -37,11 +37,23 @@ class DeviceManagerTest {
             DeviceManager.appCommand(AppAction.CLEAR_DATA, "com.example.notes", 10))
         assertEquals("pm uninstall --user 0 'com.example.notes'",
             DeviceManager.appCommand(AppAction.UNINSTALL, "com.example.notes", 0))
+        assertEquals("pm disable-user --user 0 'com.example.notes'",
+            DeviceManager.appCommand(AppAction.DISABLE, "com.example.notes", 0))
+        assertEquals("pm enable --user 0 'com.example.notes'",
+            DeviceManager.appCommand(AppAction.ENABLE, "com.example.notes", 0))
         assertTrue(runCatching { DeviceManager.appCommand(AppAction.UNINSTALL, "com.example.x;reboot", 0) }.isFailure)
         assertTrue(runCatching { DeviceManager.appCommand(AppAction.CLEAR_DATA, "com.example.x", -1) }.isFailure)
-        DeviceManager.requireAppSuccess("Success\n", 0)
-        assertTrue(runCatching { DeviceManager.requireAppSuccess("Failure [DELETE_FAILED]", 0) }.isFailure)
-        assertTrue(runCatching { DeviceManager.requireAppSuccess("Success", 1) }.isFailure)
+        DeviceManager.requireAppSuccess(AppAction.CLEAR_DATA, "com.example.notes", "Success\n", 0)
+        DeviceManager.requireAppSuccess(AppAction.DISABLE, "com.example.notes",
+            "Package com.example.notes new state: disabled-user\n", 0)
+        DeviceManager.requireAppSuccess(AppAction.ENABLE, "com.example.notes",
+            "Package com.example.notes new state: enabled\n", 0)
+        assertTrue(runCatching { DeviceManager.requireAppSuccess(AppAction.DISABLE, "com.example.notes",
+            "Package com.example.notes new state: enabled", 0) }.isFailure)
+        assertTrue(runCatching { DeviceManager.requireAppSuccess(AppAction.UNINSTALL, "com.example.notes",
+            "Failure [DELETE_FAILED]", 0) }.isFailure)
+        assertTrue(runCatching { DeviceManager.requireAppSuccess(AppAction.CLEAR_DATA, "com.example.notes",
+            "Success", 1) }.isFailure)
     }
 
     private fun dent(name: String, mode: Int, size: Int, modified: Int): ByteArray =
