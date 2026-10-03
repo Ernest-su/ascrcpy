@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 data class AppInfo(val name: String, val packageName: String, val versionName: String, val versionCode: String, val system: Boolean)
+enum class AppAction { CLEAR_DATA, UNINSTALL }
 data class RemoteFile(val name: String, val path: String, val mode: Int, val size: Long, val modifiedSeconds: Long) {
     val directory: Boolean get() = mode and 0xF000 == 0x4000
     val type: String get() = when (mode and 0xF000) {
@@ -39,6 +40,13 @@ class DeviceManager(private val context: Context, private val client: AdbClient)
                 listOf("/system/", "/system_ext/", "/product/", "/vendor/", "/odm/")
                     .any { apk.startsWith(it) })
         }.sortedBy { it.name.lowercase() }
+    }
+
+    suspend fun manageApp(action: AppAction, app: AppInfo) = withContext(Dispatchers.IO) {
+        val userId = shell("am get-current-user").trim().toIntOrNull()
+        requireNotNull(userId?.takeIf { it >= 0 }) { "Unable to determine current device user" }
+        val result = client.shell(appCommand(action, app.packageName, userId))
+        requireAppSuccess(result.text(), result.exitCode)
     }
 
     suspend fun files(path: String): List<RemoteFile> = withContext(Dispatchers.IO) {
@@ -90,6 +98,18 @@ class DeviceManager(private val context: Context, private val client: AdbClient)
 
     companion object {
         private const val DELETE_EXIT_MARKER = "__ADB_DELETE_EXIT__:"
+        internal fun appCommand(action: AppAction, packageName: String, userId: Int): String {
+            require(userId >= 0 && packageName.matches(Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+"))) {
+                "Invalid package name or device user"
+            }
+            val operation = if (action == AppAction.CLEAR_DATA) "clear" else "uninstall"
+            return "pm $operation --user $userId ${quote(packageName)}"
+        }
+        internal fun requireAppSuccess(output: String, exitCode: Int?) {
+            if (exitCode != null && exitCode != 0 || output.trim() != "Success") {
+                throw IllegalStateException(output.trim().ifBlank { "Package manager operation failed" })
+            }
+        }
         internal fun deleteCommand(entry: RemoteFile): String {
             require(entry.path.startsWith('/') && entry.path != "/" && '\u0000' !in entry.path &&
                 entry.path.split('/').none { it == "." || it == ".." }) {

@@ -74,6 +74,7 @@ Android TV that has no keyboard and no app store.
 - Open Device management from the connected home screen to run shell commands, view installed apps,
   and browse remote files. Files and folders can be downloaded to a selected local directory;
   remote deletion requires confirmation.
+- The app list can clear an app's data or uninstall it for the current device user after confirmation.
 - Persistent, searchable connection-host history with one-tap deletion.
 - English and Simplified Chinese, including Android 13 per-app language selection.
 - Session state, error reporting, rotation and surface-recreation handling, and clean shutdown.

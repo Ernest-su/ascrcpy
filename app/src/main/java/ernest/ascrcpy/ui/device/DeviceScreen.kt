@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,6 +87,7 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
     var status by remember { mutableStateOf("") }
     var pendingDownload by remember { mutableStateOf<RemoteFile?>(null) }
     var pendingDelete by remember { mutableStateOf<RemoteFile?>(null) }
+    var pendingAppAction by remember { mutableStateOf<Pair<AppInfo, AppAction>?>(null) }
     val failed = stringResource(R.string.status_operation_failed)
     val completed = stringResource(R.string.status_command_complete)
 
@@ -154,6 +156,31 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
             },
+        )
+    }
+
+    pendingAppAction?.let { (app, action) ->
+        val clearing = action == AppAction.CLEAR_DATA
+        AlertDialog(
+            onDismissRequest = { pendingAppAction = null },
+            title = { Text(stringResource(if (clearing) R.string.clear_app_confirm_title else R.string.uninstall_app_confirm_title)) },
+            text = { Text(stringResource(if (clearing) R.string.clear_app_confirm else R.string.uninstall_app_confirm,
+                app.name, app.packageName)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingAppAction = null
+                    runOperation {
+                        status = context.getString(if (clearing) R.string.status_clearing_app else R.string.status_uninstalling_app, app.packageName)
+                        manager.manageApp(action, app)
+                        if (!clearing) apps = apps.filterNot { it.packageName == app.packageName }
+                        status = context.getString(if (clearing) R.string.status_app_cleared else R.string.status_app_uninstalled, app.packageName)
+                    }
+                }, enabled = isConnected && !loading,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                    Text(stringResource(if (clearing) R.string.clear_app_data else R.string.uninstall_app))
+                }
+            },
+            dismissButton = { TextButton(onClick = { pendingAppAction = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 
@@ -227,19 +254,32 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
                 }
                 items(apps, key = { it.packageName }) { app ->
                     Card(Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.padding(14.dp)) {
+                          Row(verticalAlignment = Alignment.CenterVertically) {
                             Surface(shape = MaterialTheme.shapes.medium,
                                 color = MaterialTheme.colorScheme.surfaceVariant) {
                                 Text(app.name.take(1).uppercase(), Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(12.dp))
-                            Column {
+                            Column(Modifier.weight(1f)) {
                                 Text(app.name, fontWeight = FontWeight.SemiBold)
                                 Text(app.packageName, style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Text(if (app.system) stringResource(R.string.app_system) else stringResource(R.string.app_user),
                                     style = MaterialTheme.typography.labelSmall)
                             }
+                          }
+                          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                              TextButton(onClick = { pendingAppAction = app to AppAction.CLEAR_DATA }, enabled = isConnected && !loading,
+                                  colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                  Text(stringResource(R.string.clear_app_data))
+                              }
+                              TextButton(onClick = { pendingAppAction = app to AppAction.UNINSTALL }, enabled = isConnected && !loading,
+                                  colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                  Text(stringResource(R.string.uninstall_app))
+                              }
+                          }
                         }
                     }
                 }

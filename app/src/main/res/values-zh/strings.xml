@@ -120,6 +120,16 @@
     <string name="refresh">刷新</string>
     <string name="app_system">系统应用</string>
     <string name="app_user">用户安装</string>
+    <string name="clear_app_data">清空数据</string>
+    <string name="uninstall_app">卸载</string>
+    <string name="clear_app_confirm_title">清空应用数据？</string>
+    <string name="uninstall_app_confirm_title">卸载应用？</string>
+    <string name="clear_app_confirm">清空 %1$s（%2$s）的全部数据？应用将被重置，且无法撤销。</string>
+    <string name="uninstall_app_confirm">为设备当前用户卸载 %1$s（%2$s）？应用数据也可能被删除。</string>
+    <string name="status_clearing_app">正在清空 %1$s 的数据…</string>
+    <string name="status_app_cleared">已清空 %1$s 的数据</string>
+    <string name="status_uninstalling_app">正在卸载 %1$s…</string>
+    <string name="status_app_uninstalled">已卸载 %1$s</string>
     <string name="remote_storage">远程存储空间</string>
     <string name="file_count">共 %1$d 项</string>
     <string name="device_management">设备管理</string>

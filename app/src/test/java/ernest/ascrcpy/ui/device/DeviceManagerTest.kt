@@ -32,6 +32,18 @@ class DeviceManagerTest {
         assertTrue(runCatching { DeviceManager.requireDeleteSuccess("denied\n__ADB_DELETE_EXIT__:1\n") }.isFailure)
     }
 
+    @Test fun appActionsValidatePackagesAndRequireSuccess() {
+        assertEquals("pm clear --user 10 'com.example.notes'",
+            DeviceManager.appCommand(AppAction.CLEAR_DATA, "com.example.notes", 10))
+        assertEquals("pm uninstall --user 0 'com.example.notes'",
+            DeviceManager.appCommand(AppAction.UNINSTALL, "com.example.notes", 0))
+        assertTrue(runCatching { DeviceManager.appCommand(AppAction.UNINSTALL, "com.example.x;reboot", 0) }.isFailure)
+        assertTrue(runCatching { DeviceManager.appCommand(AppAction.CLEAR_DATA, "com.example.x", -1) }.isFailure)
+        DeviceManager.requireAppSuccess("Success\n", 0)
+        assertTrue(runCatching { DeviceManager.requireAppSuccess("Failure [DELETE_FAILED]", 0) }.isFailure)
+        assertTrue(runCatching { DeviceManager.requireAppSuccess("Success", 1) }.isFailure)
+    }
+
     private fun dent(name: String, mode: Int, size: Int, modified: Int): ByteArray =
         "DENT".toByteArray() + ints(mode, size, modified, name.toByteArray().size) + name.toByteArray()
 
