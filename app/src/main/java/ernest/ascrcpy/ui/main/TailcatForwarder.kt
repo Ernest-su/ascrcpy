@@ -15,6 +15,7 @@ import java.io.IOException
 /** Owns a Tailcat CLI process that forwards one loopback TCP port to a remote ADB port. */
 internal class TailcatForwarder(context: Context) : Closeable {
   private val binary = java.io.File(context.applicationInfo.nativeLibraryDir, "libtailcat.so")
+  private val configDirectory = java.io.File(context.noBackupFilesDir, "tailcat-config")
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private var process: Process? = null
   private var outputJob: Job? = null
@@ -28,7 +29,12 @@ internal class TailcatForwarder(context: Context) : Closeable {
     if (!binary.isFile || !binary.canExecute()) throw IOException("Tailcat is unavailable for this device ABI")
     val ready = CompletableDeferred<Int>()
     val child = withContext(Dispatchers.IO) {
-      ProcessBuilder(binary.absolutePath, "forward", address, "0:$remotePort")
+      if (!configDirectory.isDirectory && !configDirectory.mkdirs()) {
+        throw IOException("Unable to create Tailcat configuration directory")
+      }
+      ProcessBuilder(binary.absolutePath, "forward", address, "0:$remotePort").apply {
+        configureTailcatEnvironment(environment(), configDirectory.absolutePath)
+      }
         .redirectErrorStream(true)
         .start()
     }
@@ -68,7 +74,16 @@ internal class TailcatForwarder(context: Context) : Closeable {
   }
 }
 
-private val FORWARD_LINE = Regex("^# forwarding 127\\.0\\.0\\.1:(\\d+) -> remote (\\d+)\\s*$")
+/** Go's os.UserConfigDir requires HOME or XDG_CONFIG_HOME, neither of which is
+ * guaranteed for a process spawned directly by an Android application. */
+internal fun configureTailcatEnvironment(environment: MutableMap<String, String>, configPath: String) {
+  environment["HOME"] = configPath
+  environment["XDG_CONFIG_HOME"] = configPath
+}
+
+private val FORWARD_LINE = Regex(
+  "^# forwarding 127\\.0\\.0\\.1:(\\d+) -> remote (?:\\S+:)?(\\d+)\\s*$",
+)
 
 internal fun parseForwardedPort(line: String, remotePort: Int): Int? {
   val match = FORWARD_LINE.matchEntire(line) ?: return null
