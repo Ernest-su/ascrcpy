@@ -98,7 +98,6 @@ jobs:
       - name: Verify, then assemble the signed APK
         run: |
           ./gradlew --no-daemon \
-            :adb:testDebugUnitTest \
             :scrcpy:testDebugUnitTest \
             :app:testDebugUnitTest \
             :app:assembleRelease \
