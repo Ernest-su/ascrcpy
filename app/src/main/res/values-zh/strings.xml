@@ -146,4 +146,10 @@
     <string name="device_management">设备管理</string>
     <string name="toggle_fullscreen">切换镜像全屏</string>
     <string name="file_summary">%1$s · %2$s · %3$s</string>
+    <string name="method_tailcat_wireless">Tailcat 无线配对</string>
+    <string name="tailcat_wireless_description">输入共享的 Tailcat 地址、当前远端配对端口、TLS 连接端口和六位配对码。保持目标设备配对窗口打开。已配对的控制端可使用当前连接端口，点击连接已配对设备。</string>
+    <string name="tailcat_pair_connect">配对并连接</string>
+    <string name="tailcat_connect_paired">连接已配对设备</string>
+    <string name="log_invalid_tailcat_pairing">请输入不同的配对与连接端口（1–65535）及六位配对码。</string>
+    <string name="log_tailcat_wireless_failed">Tailcat 无线连接失败。请检查当前地址、共享端口与配对码，保持配对窗口打开并重试。若配对已成功，请使用连接已配对设备。</string>
 </resources>

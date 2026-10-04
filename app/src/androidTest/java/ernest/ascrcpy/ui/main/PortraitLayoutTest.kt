@@ -75,6 +75,8 @@ class PortraitLayoutTest {
     val cases = listOf(
       MainUiState(method = ConnectionMethod.TCP) to R.string.connect,
       MainUiState(method = ConnectionMethod.TAILCAT) to R.string.connect,
+      MainUiState(method = ConnectionMethod.TAILCAT_WIRELESS) to R.string.tailcat_pair_connect,
+      MainUiState(method = ConnectionMethod.TAILCAT_WIRELESS) to R.string.tailcat_connect_paired,
       MainUiState(method = ConnectionMethod.WIRELESS_CODE) to R.string.pair_wireless,
       MainUiState(method = ConnectionMethod.WIRELESS_CODE, wirelessCodePaired = true) to R.string.connect_saved_wireless_device,
       MainUiState(method = ConnectionMethod.WIRELESS_QR) to R.string.pair_qr,

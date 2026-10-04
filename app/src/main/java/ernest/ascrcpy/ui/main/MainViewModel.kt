@@ -32,7 +32,7 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 
-enum class ConnectionMethod { TCP, TAILCAT, WIRELESS_CODE, WIRELESS_QR, USB }
+enum class ConnectionMethod { TCP, TAILCAT, TAILCAT_WIRELESS, WIRELESS_CODE, WIRELESS_QR, USB }
 
 data class SavedWirelessDevice(
   val guid: String,
@@ -114,7 +114,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     form.update { copy(method = value, port = when (value) {
       ConnectionMethod.TCP -> if (port.isBlank()) "5555" else port
       ConnectionMethod.TAILCAT -> if (method != value) "5555" else port
-      ConnectionMethod.WIRELESS_CODE -> if (method != value) "" else port
+      ConnectionMethod.WIRELESS_CODE, ConnectionMethod.TAILCAT_WIRELESS -> if (method != value) "" else port
       else -> port
     }) }
   }
@@ -133,6 +133,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   fun connect() {
+    if (form.value.busy) return
+    if (form.value.method == ConnectionMethod.TAILCAT_WIRELESS) {
+      connectTailcatWireless(pair = false)
+      return
+    }
     val snapshot = form.value
     stopSavedReconnect()
     val port = snapshot.port.toIntOrNull()
@@ -178,6 +183,54 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
+  private fun connectTailcatWireless(pair: Boolean) {
+    if (form.value.busy) return
+    val snapshot = form.value
+    val connectionPort = snapshot.port.toIntOrNull()?.takeIf { it in 1..65535 }
+    val ports = tailcatPairingPorts(snapshot.pairingPort, snapshot.port)
+    if (!validTailcatAddress(snapshot.tailcatAddress)) {
+      form.update { copy(console = string(R.string.log_invalid_tailcat_address)) }
+      return
+    }
+    if (connectionPort == null || (pair && (ports == null || !snapshot.pairingCode.matches(Regex("[0-9]{6}"))))) {
+      form.update { copy(console = string(R.string.log_invalid_tailcat_pairing)) }
+      return
+    }
+    form.update { copy(busy = true, console = string(R.string.log_starting_tailcat)) }
+    viewModelScope.launch {
+      try {
+        val pairingPort = ports?.pairing
+        val remotePorts = if (pair && pairingPort != null) listOf(pairingPort, connectionPort) else listOf(connectionPort)
+        val mappings = tailcat.start(snapshot.tailcatAddress, remotePorts)
+        if (pair && pairingPort != null) {
+          form.update { copy(console = string(R.string.log_pairing)) }
+          withTimeout(30_000) {
+            client.pairWireless(AdbEndpoint("127.0.0.1", mappings.getValue(pairingPort)), snapshot.pairingCode)
+          }
+          form.update { copy(pairingCode = "") }
+          android.util.Log.i("TailcatSession", "pairing complete")
+        }
+        val device = withTimeout(30_000) {
+          client.connectWireless(AdbEndpoint("127.0.0.1", mappings.getValue(connectionPort)))
+        }
+        shouldMirror = true
+        form.update { copy(console = string(R.string.log_connected, device.banner)) }
+        android.util.Log.i("TailcatSession", "TLS ADB connected state=${client.state.value.javaClass.simpleName}")
+        scheduleMirroring()
+      } catch (error: CancellationException) {
+        tailcat.stop()
+        throw error
+      } catch (_: Exception) {
+        tailcat.stop()
+        // Library and child-process errors can contain endpoint credentials; show a localized safe message.
+        form.update { copy(console = string(R.string.log_tailcat_wireless_failed)) }
+        android.util.Log.w("TailcatSession", "wireless session failed")
+      } finally {
+        form.update { copy(busy = false) }
+      }
+    }
+  }
+
   fun connectUsb(device: UsbDevice) {
     if (!usbManager.hasPermission(device)) {
       form.update { copy(console = string(R.string.log_usb_denied)) }
@@ -199,6 +252,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   fun reportUsbError(message: String) = form.update { copy(console = message) }
 
   fun pairWithCode() {
+    if (form.value.method == ConnectionMethod.TAILCAT_WIRELESS) {
+      connectTailcatWireless(pair = true)
+      return
+    }
     stopSavedReconnect()
     val snapshot = form.value
     val port = snapshot.pairingPort.toIntOrNull()

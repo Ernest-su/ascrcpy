@@ -20,6 +20,7 @@ android {
         applicationId = "ernest.ascrcpy"
         minSdk = 26
         targetSdk = 36
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Overridden by the release workflow from the pushed tag so published APKs are
         // distinguishable; local builds keep the defaults.
         versionCode = project.findProperty("ascrcpyVersionCode")?.toString()?.toIntOrNull() ?: 1

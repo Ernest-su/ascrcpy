@@ -258,6 +258,7 @@ private fun NormalScreen(
                 Text(stringResource(when (method) {
                   ConnectionMethod.TCP -> R.string.method_tcp
                   ConnectionMethod.TAILCAT -> R.string.method_tailcat
+                  ConnectionMethod.TAILCAT_WIRELESS -> R.string.method_tailcat_wireless
                   ConnectionMethod.WIRELESS_CODE -> R.string.method_wireless_code
                   ConnectionMethod.WIRELESS_QR -> R.string.method_wireless_qr
                   ConnectionMethod.USB -> R.string.method_usb
@@ -273,6 +274,27 @@ private fun NormalScreen(
             OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(),
               label = { Text(stringResource(R.string.tailcat_remote_port)) },
               singleLine = true, enabled = !state.busy && !state.connected)
+          }
+          if (state.method == ConnectionMethod.TAILCAT_WIRELESS && !state.connected) {
+            Text(stringResource(R.string.tailcat_wireless_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(state.tailcatAddress, onTailcatAddressChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.tailcat_address)) }, singleLine = true, enabled = !state.busy)
+            OutlinedTextField(state.pairingPort, onPairingPortChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.pairing_port)) }, singleLine = true, enabled = !state.busy)
+            OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.wireless_connection_port)) }, singleLine = true, enabled = !state.busy)
+            OutlinedTextField(state.pairingCode, onPairingCodeChange, Modifier.fillMaxWidth(),
+              label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true, enabled = !state.busy)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+              Button(onPair, enabled = !state.busy, shape = MaterialTheme.shapes.small,
+                modifier = Modifier.width(IntrinsicSize.Max)) {
+                Text(stringResource(R.string.tailcat_pair_connect), maxLines = 1, softWrap = false)
+              }
+              OutlinedButton(onConnect, enabled = !state.busy, shape = MaterialTheme.shapes.small,
+                modifier = Modifier.width(IntrinsicSize.Max)) {
+                Text(stringResource(R.string.tailcat_connect_paired), maxLines = 1, softWrap = false)
+              }
+            }
           }
           if (state.method == ConnectionMethod.TCP && !state.connected) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

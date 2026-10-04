@@ -4,6 +4,9 @@ import android.content.Context
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -12,49 +15,76 @@ import kotlinx.coroutines.withTimeout
 import java.io.Closeable
 import java.io.IOException
 
-/** Owns a Tailcat CLI process that forwards one loopback TCP port to a remote ADB port. */
+/** Owns a Tailcat CLI process that forwards explicit remote ports to randomly allocated loopback ports. */
 internal class TailcatForwarder(context: Context) : Closeable {
   private val binary = java.io.File(context.applicationInfo.nativeLibraryDir, "libtailcat.so")
   private val configDirectory = java.io.File(context.noBackupFilesDir, "tailcat-config")
   private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+  private val ownership = Any()
+  @Volatile private var closed = false
   private var process: Process? = null
   private var outputJob: Job? = null
 
-  suspend fun start(address: String, remotePort: Int): Int {
-    require(address.isNotBlank() && !address.any(Char::isWhitespace) && !address.startsWith('-')) {
-      "Invalid Tailcat address"
-    }
-    require(remotePort in 1..65535) { "Invalid remote port" }
+  suspend fun start(address: String, remotePort: Int): Int = start(address, listOf(remotePort)).getValue(remotePort)
+
+  suspend fun start(address: String, remotePorts: List<Int>): Map<Int, Int> {
+    check(!closed) { "Tailcat forwarder is closed" }
+    require(validTailcatAddress(address)) { "Invalid Tailcat address" }
+    require(remotePorts.isNotEmpty() && remotePorts.all { it in 1..65535 } &&
+      remotePorts.distinct().size == remotePorts.size) { "Invalid remote ports" }
     stop()
     if (!binary.isFile || !binary.canExecute()) throw IOException("Tailcat is unavailable for this device ABI")
-    val ready = CompletableDeferred<Int>()
-    val child = withContext(Dispatchers.IO) {
-      if (!configDirectory.isDirectory && !configDirectory.mkdirs()) {
-        throw IOException("Unable to create Tailcat configuration directory")
-      }
-      ProcessBuilder(binary.absolutePath, "forward", address, "0:$remotePort").apply {
-        configureTailcatEnvironment(environment(), configDirectory.absolutePath)
-      }
-        .redirectErrorStream(true)
-        .start()
-    }
-    process = child
-    outputJob = scope.launch {
-      try {
-        child.inputStream.bufferedReader().useLines { lines ->
-          lines.forEach { line ->
-            if (!ready.isCompleted) parseForwardedPort(line, remotePort)?.let(ready::complete)
+    val fingerprint = java.security.MessageDigest.getInstance("SHA-256")
+      .digest(address.toByteArray(Charsets.UTF_8)).take(6).joinToString("") { "%02x".format(it) }
+    android.util.Log.i("TailcatSession", "request route_fingerprint=$fingerprint remote_ports=${remotePorts.joinToString(",")}")
+    val ready = CompletableDeferred<Map<Int, Int>>()
+    try {
+      // Assign ownership even when cancellation arrives while ProcessBuilder is starting.
+      val child = withContext(Dispatchers.IO + NonCancellable) {
+        if (!configDirectory.isDirectory && !configDirectory.mkdirs()) {
+          throw IOException("Unable to create Tailcat configuration directory")
+        }
+        ProcessBuilder(listOf(binary.absolutePath, "forward", address) + remotePorts.map { "0:$it" }).apply {
+          configureTailcatEnvironment(environment(), configDirectory.absolutePath)
+        }.redirectErrorStream(true).start().also { child ->
+          synchronized(ownership) {
+            if (closed) {
+              child.destroyForcibly()
+              child.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+              throw IOException("Tailcat forwarder is closed")
+            }
+            process = child
           }
         }
-        if (!ready.isCompleted) ready.completeExceptionally(IOException("Tailcat exited before forwarding started"))
-      } catch (error: IOException) {
-        if (!ready.isCompleted) ready.completeExceptionally(error)
       }
-    }
-    try {
-      val localPort = withTimeout(30_000) { ready.await() }
+      currentCoroutineContext().ensureActive()
+      outputJob = scope.launch {
+        val mappings = linkedMapOf<Int, Int>()
+        try {
+          child.inputStream.bufferedReader().useLines { lines ->
+            lines.forEach { line ->
+              if (!ready.isCompleted) {
+                remotePorts.forEach { remote ->
+                  parseForwardedPort(line, remote)?.let { local -> mappings[remote] = local }
+                }
+                if (mappings.size == remotePorts.size && mappings.values.distinct().size == mappings.size) {
+                  // Log only ports, never the address or raw child output (which may include credentials).
+                  mappings.forEach { (remote, local) ->
+                    android.util.Log.i("TailcatSession", "forward remote=$remote local=$local")
+                  }
+                  ready.complete(mappings.toMap())
+                }
+              }
+            }
+          }
+          if (!ready.isCompleted) ready.completeExceptionally(IOException("Tailcat exited before forwarding started"))
+        } catch (_: IOException) {
+          if (!ready.isCompleted) ready.completeExceptionally(IOException("Tailcat forwarding failed"))
+        }
+      }
+      val mappings = withTimeout(30_000) { ready.await() }
       if (!child.isAlive) throw IOException("Tailcat stopped unexpectedly")
-      return localPort
+      return mappings
     } catch (error: Exception) {
       stop()
       throw error
@@ -62,13 +92,20 @@ internal class TailcatForwarder(context: Context) : Closeable {
   }
 
   fun stop() {
-    process?.destroy()
-    process = null
+    val child = synchronized(ownership) { process.also { process = null } }
+    child?.destroy()
+    if (child != null) CoroutineScope(Dispatchers.IO).launch {
+      if (!child.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+        child.destroyForcibly()
+        child.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+      }
+    }
     outputJob?.cancel()
     outputJob = null
   }
 
   override fun close() {
+    synchronized(ownership) { closed = true }
     stop()
     scope.coroutineContext[Job]?.cancel()
   }
@@ -89,4 +126,15 @@ internal fun parseForwardedPort(line: String, remotePort: Int): Int? {
   val match = FORWARD_LINE.matchEntire(line) ?: return null
   if (match.groupValues[2].toIntOrNull() != remotePort) return null
   return match.groupValues[1].toIntOrNull()?.takeIf { it in 1..65535 }
+}
+
+internal fun validTailcatAddress(address: String): Boolean =
+  address.isNotBlank() && !address.any(Char::isWhitespace) && !address.startsWith('-')
+
+internal data class TailcatPairingPorts(val pairing: Int, val connection: Int)
+
+internal fun tailcatPairingPorts(pairing: String, connection: String): TailcatPairingPorts? {
+  val pair = pairing.toIntOrNull()?.takeIf { it in 1..65535 } ?: return null
+  val connect = connection.toIntOrNull()?.takeIf { it in 1..65535 && it != pair } ?: return null
+  return TailcatPairingPorts(pair, connect)
 }

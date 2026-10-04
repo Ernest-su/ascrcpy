@@ -87,7 +87,7 @@ AScrcpy 去掉了这个前提：
 
 - **控制端**为 Android 8.0（API 26）及以上。
 - TCP 模式要求目标已开启 ADB 网络端口，常见做法是 `adb tcpip 5555`。
-- Tailcat 模式要求目标已开启 TCP ADB，并已通过 `tailcat serve 5555` 共享该端口。选择 Tailcat，输入服务端显示的 Tailcat 地址和远端 ADB 端口（默认 5555）。无需安装 nl2sh。地址相当于连接凭据，应只发给授权的控制端。应用内置 ARM64/ARMv7 Tailcat 客户端，连接断开时会停止隧道；其他 CPU 架构暂不支持。
+- Tailcat 模式要求目标已开启 TCP ADB，并已通过 `tailcat serve 5555` 共享该端口。选择 Tailcat，输入服务端显示的 Tailcat 地址和远端 ADB 端口（默认 5555）。地址相当于连接凭据，应只发给授权的控制端。应用内置 ARM64/ARMv7/x86_64 Tailcat 客户端，连接断开时会停止隧道；其他 CPU 架构暂不支持。
 - 无线调试要求目标运行 Android 11+，两台设备处于同一可达的 Wi-Fi 网络。配对码模式先使用临时配对端口配对，再输入独立连接端口；二维码模式由本应用展示二维码，目标设备扫码后自动发现并连接。
 - USB 模式要求控制端支持 USB 主机、目标开启 USB 调试，并批准 USB 访问和 RSA 授权。
 - legacy TCP ADB 是明文传输，请只在可信网络使用。
@@ -201,3 +201,27 @@ Copyright 2026 Ernest-su and AScrcpy contributors.
 
 基于 Apache License, Version 2.0 发布。许可证全文见 [LICENSE](LICENSE)，内置 scrcpy server 的
 相关信息见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+### Tailcat 无线配对
+
+在 Android 11+ 目标设备开启开发者选项与无线调试，打开“使用配对码配对设备”并保持窗口打开。用同一个监听器共享当前两个远端端口：
+
+```shell
+tailcat --key=new serve 配对端口 连接端口
+```
+
+控制端选择 **Tailcat 无线配对**，输入打印的 Tailcat 地址、目标的配对端口、独立的 TLS 连接端口及当前六位配对码，点击 **配对并连接**。应用将两个端口映射到随机回环端口，使用持久化 ADB 身份配对、通过 TLS 连接并自动投屏。输入的是目标端口，不是电脑转发器的本地端口；无需 mDNS，隧道也不转发 mDNS。
+
+配对成功后清空配对码。目标仍信任本应用身份时，可输入当前地址和连接端口，点击 **连接已配对设备**，仅转发连接端口，无需新配对码。地址与配对码不保存、不写日志。Wi-Fi 或无线调试重启可能改变端口，Tailcat 重启可能改变地址，应重新获取当前值。断开会停止隧道，不会关闭目标无线调试或撤销授权；撤销须在目标设置中忘记控制端。
+
+APK 内置 ARM64、ARMv7 和 x86_64 Tailcat 0.7.0。Android 8/9 控制端可能因上游 Android DNS 协议不兼容导致 Tailcat 引导失败，需兼容的 Tailcat 构建或较新系统。目标设置必须提前启用并授权，双方 Tailcat 网络必须可用；本模式不代替目标设置操作。未实现前台服务，不保证长时间后台会话；模拟器验证不代表真机兼容性。
+
+可选的 `TailcatWirelessDeviceTest` 使用真实目标验证配对、TLS 连接、shell、投屏、HOME 控制、服务端退出和无配对码重连。普通 Gradle 设备测试在未提供现场输入时跳过此用例。构建并安装两个 debug APK 后，使用 `adb shell run-as ernest.ascrcpy` 将包含 `address`、`pairing_port`、`connect_port`、`pairing_code` 的私有 JSON 写入控制端应用的 `files/tailcat-device-check.json`，再执行：
+
+```shell
+adb -s 控制端序列号 shell am instrument -w -r \
+  -e class ernest.ascrcpy.ui.main.TailcatWirelessDeviceTest \
+  ernest.ascrcpy.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+测试读取后删除输入文件。应在安装后写入，因为 Gradle 设备测试可能清理应用数据。使用第二台设备作为目标，保持当前配对窗口打开，不将凭据放入命令参数、版本管理文件或测试日志。控制端 `TailcatSession` 日志记录简短 SHA-256 路由指纹及远端/本地端口；`TailcatDeviceTest` 记录验证阶段与视频尺寸。

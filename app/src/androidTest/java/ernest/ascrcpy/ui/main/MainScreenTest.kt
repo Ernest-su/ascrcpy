@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
@@ -269,4 +270,23 @@ class MainScreenTest {
       R.string.confirm,
     )
   }
+  @Test fun tailcatWirelessUsesTwoRemotePortsAndExplicitActions() {
+    var pairing = 0
+    var reconnecting = 0
+    composeTestRule.setContent {
+      MainScreen(MainUiState(method = ConnectionMethod.TAILCAT_WIRELESS), {}, {}, { reconnecting++ },
+        {}, {}, {}, {}, {}, {}, { _, _, _, _, _ -> }, {}, {}, onPair = { pairing++ })
+    }
+    for (label in listOf(R.string.tailcat_address, R.string.pairing_port,
+      R.string.wireless_connection_port, R.string.pairing_code)) {
+      composeTestRule.onNodeWithText(text(label)).assertExists()
+    }
+    composeTestRule.onNodeWithText(text(R.string.pairing_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.ip_address_or_host)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(text(R.string.tailcat_pair_connect)).performScrollTo().performClick()
+    composeTestRule.onNodeWithText(text(R.string.tailcat_connect_paired)).performScrollTo().performClick()
+    assertEquals(1, pairing)
+    assertEquals(1, reconnecting)
+  }
+
 }

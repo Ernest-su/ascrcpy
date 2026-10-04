@@ -91,7 +91,7 @@ App 按 GUID 保存多个无线设备的目标端上报名称、配对/路由地
 用户选择设备并点击“查找并连接已保存设备”后才按 GUID 查找当前 `_adb-tls-connect._tcp` 服务并连接。
 最近端口仅用于发现失败后的手动回退，因为目标端可随时更换端口。“配对其他设备”保留现有列表并打开新配对表单。
 
-Tailcat 连接由 `app` 的 `TailcatForwarder` 管理官方 Tailcat 进程。它将被控端共享的 ADB 端口映射到控制端随机分配的 `127.0.0.1` 端口，然后把本地端口交给现有 `AdbClient.connect`。断开连接或销毁 ViewModel 时停止进程；ADB framing 和 scrcpy 协议仍由原有模块负责。当前只支持目标端已共享的 TCP ADB 端口，不自动启用目标端 adbd，也不通过 Tailcat 完成无线调试配对。
+Tailcat 连接由 `app` 的 `TailcatForwarder` 管理官方 Tailcat 进程。它将被控端共享的 ADB 端口映射到控制端随机分配的 `127.0.0.1` 端口，然后把本地端口交给现有 `AdbClient.connect`。断开连接或销毁 ViewModel 时停止进程；ADB framing 和 scrcpy 协议仍由原有模块负责。普通 Tailcat 模式使用已有 TCP ADB 端口。新增独立 Tailcat 无线配对模式在一个进程中将当前配对与 TLS 连接端口分别映射到随机回环端口，等待全部映射就绪后调用公共 `AdbClient.pairWireless` 与 `connectWireless`；不经 NSD 发现，不保存地址或配对码，成功配对后清空码。已配对设备可仅转发当前连接端口并复用持久化身份连接。每阶段设有超时，失败和取消停止本次进程，断开与 ViewModel 销毁亦清理进程；有界等待退出，必要时强制结束。日志只记录端口与阶段，不记录完整地址、配对码或子进程原始输出。应用不自动开启目标 adbd 或撤销目标已配对身份。内置官方 v0.7.0 ARM64/ARMv7/x86_64 可执行文件及校验摘要见第三方声明。
 
 ### `:scrcpy`
 

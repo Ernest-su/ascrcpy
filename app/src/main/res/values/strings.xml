@@ -146,4 +146,10 @@
     <string name="device_management">Device management</string>
     <string name="toggle_fullscreen">Toggle mirror fullscreen</string>
     <string name="file_summary">%1$s · %2$s · %3$s</string>
+    <string name="method_tailcat_wireless">Tailcat wireless pairing</string>
+    <string name="tailcat_wireless_description">Enter the shared Tailcat address, current remote pairing and TLS connection ports, and six-digit code. Keep the target pairing dialog open. For a previously paired controller, use Connect paired device with the current connection port.</string>
+    <string name="tailcat_pair_connect">Pair and connect</string>
+    <string name="tailcat_connect_paired">Connect paired device</string>
+    <string name="log_invalid_tailcat_pairing">Enter distinct pairing and connection ports (1–65535) and a six-digit code.</string>
+    <string name="log_tailcat_wireless_failed">Tailcat wireless connection failed. Check the current address, shared ports and code, keep the pairing dialog open, and retry. If pairing succeeded, use Connect paired device.</string>
 </resources>

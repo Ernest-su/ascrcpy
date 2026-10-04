@@ -97,7 +97,7 @@ an edge as a small icon, or pulled away from the edge into a full panel as shown
 
 - Android 8.0 (API 26) or newer on the **controller**.
 - For TCP ADB, a target reachable at an already-enabled ADB port (often `adb tcpip 5555`).
-- For Tailcat, enable TCP ADB on the target and expose that port with `tailcat serve 5555`. Select Tailcat in AScrcpy, then enter the printed Tailcat address and remote ADB port (default 5555). No nl2sh installation is required. Treat the address as a credential. The APK includes ARM64 and ARMv7 Tailcat clients; other controller ABIs are not supported.
+- For Tailcat, enable TCP ADB on the target and expose that port with `tailcat serve 5555`. Select Tailcat in AScrcpy, then enter the printed Tailcat address and remote ADB port (default 5555). Treat the address as a credential. The APK includes ARM64, ARMv7 and x86_64 Tailcat clients; other controller ABIs are not supported.
 - For wireless debugging, Android 11+ on the target and both devices on the same reachable Wi-Fi network. Pair using the temporary pairing address/port and six-digit code, then connect using the separate connection port. For QR pairing, show the QR code in AScrcpy and scan it from the target's Wireless debugging settings; the app discovers and connects to the target.
 - For USB, USB Host support on the controller, USB debugging on the target, a compatible cable, and approval of USB access and RSA authorization prompts.
 - Legacy TCP ADB is plaintext; use it on a trusted network.
@@ -216,3 +216,27 @@ Copyright 2026 Ernest-su and AScrcpy contributors.
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full text and
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the bundled scrcpy server.
+
+### Tailcat wireless pairing
+
+On an Android 11+ target, enable Developer options and Wireless debugging, then open **Pair device with pairing code**. Keep that dialog open. Share both current remote ports in one listener:
+
+```shell
+tailcat --key=new serve PAIRING_PORT CONNECTION_PORT
+```
+
+In the controller select **Tailcat wireless pairing** and enter the printed Tailcat address, the target's pairing port, its separate TLS connection port, and the current six-digit code. Tap **Pair and connect**. The app forwards both ports to randomly allocated loopback ports, pairs using its persistent ADB identity, connects over TLS, and starts mirroring. These fields take target ports, not the loopback ports shown by a desktop forwarder. No mDNS discovery is required or forwarded.
+
+After successful pairing the code is cleared. **Connect paired device** forwards only the current connection port and reuses the stored ADB identity; no new code is needed while the target still trusts that identity. Addresses and codes are not saved or logged. Changing Wi-Fi or restarting wireless debugging may change ports; restarting Tailcat may change its address. Request fresh values and retry. Disconnecting stops the tunnel; it does not disable wireless debugging or revoke trust on the target. Forget the controller in target Settings to revoke it.
+
+The APK includes Tailcat 0.7.0 for ARM64, ARMv7 and x86_64. Android 8/9 controllers may encounter upstream Android DNS protocol incompatibility during Tailcat bootstrap; use a compatible Tailcat build or a newer controller OS. This mode requires an already enabled, authorized target and working Tailcat networking; it does not enable target settings. Background continuity is not guaranteed without a foreground service. Emulator checks do not establish physical-device compatibility.
+
+The optional `TailcatWirelessDeviceTest` exercises a real target, including pairing, TLS connection, shell, streaming, HOME control, server shutdown and reconnect without a code. The normal Gradle device suite skips it unless live input is provisioned. After building and installing both debug APKs, place a private JSON object containing `address`, `pairing_port`, `connect_port` and `pairing_code` at the controller app's `files/tailcat-device-check.json` using `adb shell run-as ernest.ascrcpy`; then run:
+
+```shell
+adb -s CONTROLLER shell am instrument -w -r \
+  -e class ernest.ascrcpy.ui.main.TailcatWirelessDeviceTest \
+  ernest.ascrcpy.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+The test deletes the input after reading it. Provision it after installation, because Gradle device tests may clear app data. Use a second target, keep its current pairing dialog open, and keep credentials out of command arguments, tracked files and test logs. The controller log tag `TailcatSession` contains a short SHA-256 route fingerprint and remote/local ports; `TailcatDeviceTest` reports verified phases and streaming dimensions.
