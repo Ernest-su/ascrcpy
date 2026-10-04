@@ -69,6 +69,7 @@ Android TV that has no keyboard and no app store.
 - Automatic immersive preview after connecting, cutout- and notch-aware.
 - Draggable floating remote that snaps to an edge; drag it away from the edge and it opens into a
   full panel. One layout, scaled to fit whatever space is available, so it stays usable in landscape.
+  On the main screen, the remote stays inside the video preview without covering connection actions.
 - Long-press the docked icon to switch between the full-screen preview and the main screen.
 - Use the expanded remote's top-left button for the same full-screen switch.
 - Open Device management from the connected home screen to run shell commands, view installed apps,
@@ -123,7 +124,7 @@ Run the instrumented tests on a connected device:
 ## Usage
 
 1. Install AScrcpy on the controller phone.
-2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, enter the temporary pairing endpoint and code; after pairing, AScrcpy discovers the separate connection endpoint and connects automatically. Paired devices are saved by GUID with their reported model name and route address. On a later launch, select a device from the paired-device list and press **Find and connect saved device**; AScrcpy never reconnects merely because it was opened. An explicitly entered Tailscale address is retained to keep that route; ordinary Wi-Fi pairing uses the address resolved by the matching NSD service. If mDNS discovery or automatic connection fails, enter or confirm the connection port and tap **Connect**. Use **Pair a different device** to add another device. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
+2. Select TCP, Tailcat, wireless pairing code, wireless QR, or USB Host. For wireless code, enter the temporary pairing endpoint and code; after pairing, AScrcpy discovers the separate connection endpoint and connects automatically. Paired devices are saved by GUID with their reported model name and route address. On a later launch, select a device from the paired-device list and press **Connect saved device**; AScrcpy never reconnects merely because it was opened. An explicitly entered Tailscale address is retained to keep that route; ordinary Wi-Fi pairing uses the address resolved by the matching NSD service. If mDNS discovery or automatic connection fails, enter or confirm the connection port and tap **Connect**. Use **Pair a different device** to add another device. For QR, scan the displayed code on the target. For USB, approve both permission prompts.
 3. For TCP, enter the target address and port; for Tailcat, enter the shared address and remote ADB port. Tap **Connect**. The app remembers TCP hosts, but does not save Tailcat addresses.
 4. Tap **Test shell** to confirm the connection, then **Start mirroring**. The preview opens
    full screen automatically.

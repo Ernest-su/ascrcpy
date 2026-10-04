@@ -214,15 +214,17 @@ class MainScreenTest {
       }
     }
 
-    dragPanel(-300f)
+    // Keep both drops away from the docking edges on narrow portrait phones.
+    val dragDistance = screen.width * 0.1f
+    dragPanel(-dragDistance)
     val movedAway = power.fetchSemanticsNode().boundsInRoot
-    dragPanel(300f)
+    dragPanel(dragDistance)
     val movedBack = power.fetchSemanticsNode().boundsInRoot
 
     // Two opposite drags of equal size must cancel out. A gesture that re-seeds the position from a
     // stale snapshot instead of the live one sends the panel back to where it was expanded.
     assertTrue("left drag did not move the panel: $expanded -> $movedAway",
-      movedAway.left < expanded.left - 100f)
+      movedAway.left < expanded.left - dragDistance * 0.5f)
     assertTrue("right drag snapped the panel back: $movedAway -> $movedBack",
       abs(movedBack.left - expanded.left) <= 24f)
   }
