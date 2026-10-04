@@ -19,6 +19,8 @@ private val LightColorScheme = lightColorScheme(
   surface = WeChatLightSurface, onSurface = WeChatLightText,
   surfaceVariant = WeChatLightSurfaceSubtle, onSurfaceVariant = WeChatLightTextSecondary,
   surfaceContainer = WeChatLightSurface, surfaceContainerLow = WeChatLightSurfaceSubtle,
+  surfaceContainerHigh = WeChatLightSurface, surfaceContainerHighest = WeChatLightSurface,
+  surfaceContainerLowest = WeChatLightSurface,
   outline = Color(0xFFB2B2B2), outlineVariant = WeChatLightDivider,
 )
 
@@ -31,6 +33,8 @@ private val DarkColorScheme = darkColorScheme(
   surface = WeChatDarkSurface, onSurface = WeChatDarkText,
   surfaceVariant = WeChatDarkSurfaceSubtle, onSurfaceVariant = WeChatDarkTextSecondary,
   surfaceContainer = WeChatDarkSurface, surfaceContainerLow = WeChatDarkSurfaceSubtle,
+  surfaceContainerHigh = WeChatDarkSurface, surfaceContainerHighest = WeChatDarkSurface,
+  surfaceContainerLowest = WeChatDarkSurface,
   outline = Color(0xFF595959), outlineVariant = WeChatDarkDivider,
 )
 

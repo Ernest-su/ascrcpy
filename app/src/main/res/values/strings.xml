@@ -22,7 +22,7 @@
     <string name="wireless_connection_description">Paired with %1$s. Enter the separate connection port shown on the Wireless debugging screen.</string>
     <string name="wireless_connection_port">Wireless debugging connection port</string>
     <string name="pair_different_wireless_device">Pair a different device</string>
-    <string name="connect_saved_wireless_device">Find and connect saved device</string>
+    <string name="connect_saved_wireless_device">Connect saved device</string>
     <string name="saved_wireless_devices">Paired wireless devices</string>
     <string name="qr_description">On the target, open Wireless debugging → Pair device with QR code and scan this code. Both devices must share a Wi-Fi network.</string>
     <string name="pair_qr">Show pairing QR code</string>

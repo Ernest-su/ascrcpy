@@ -11,6 +11,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -151,10 +153,10 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
                         files = manager.files(currentPath)
                         status = context.getString(R.string.status_delete_complete, entry.name)
                     }
-                }, enabled = isConnected && !loading) { Text(stringResource(R.string.delete)) }
+                }, enabled = isConnected && !loading, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.delete), maxLines = 1, softWrap = false) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { pendingDelete = null }, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.cancel), maxLines = 1, softWrap = false) }
             },
         )
     }
@@ -209,206 +211,212 @@ fun DeviceScreen(client: AdbClient, onBack: () -> Unit, onDisconnect: () -> Unit
                     }
                 }, enabled = isConnected && !loading,
                     colors = ButtonDefaults.textButtonColors(contentColor =
-                        if (action == AppAction.ENABLE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)) {
-                    Text(stringResource(labelRes))
+                        if (action == AppAction.ENABLE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error), shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+                    Text(stringResource(labelRes), maxLines = 1, softWrap = false)
                 }
             },
-            dismissButton = { TextButton(onClick = { pendingAppAction = null }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(onClick = { pendingAppAction = null }, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.cancel), maxLines = 1, softWrap = false) } },
         )
     }
 
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.device_actions), style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold)
-                Text((connection as? AdbConnectionState.Connected)?.device?.endpoint?.serial.orEmpty(), style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            TextButton(onClick = onDisconnect) { Text(stringResource(R.string.disconnect)) }
-            Spacer(Modifier.width(8.dp))
-            Surface(shape = MaterialTheme.shapes.large,
-                color = if (isConnected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer) {
-                Text(if (isConnected) stringResource(R.string.status_connected_short)
-                    else stringResource(R.string.status_disconnected),
-                    color = if (isConnected) WeChatBrand else MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium)
-            }
-        }
-        PrimaryTabRow(selectedTabIndex = tab) {
-            listOf(R.string.tab_commands, R.string.tab_apps, R.string.tab_files).forEachIndexed { index, title ->
-                Tab(selected = tab == index, onClick = { tab = index },
-                    text = { Text(stringResource(title), maxLines = 1) })
-            }
-        }
-        if (loading) CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp))
-        if (status.isNotBlank()) Text(status, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-        when (tab) {
-            0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text(stringResource(R.string.tab_commands), style = MaterialTheme.typography.headlineSmall)
-                Text(stringResource(R.string.command_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("getprop ro.product.model", "id", "pwd").forEach { preset ->
-                        TextButton(onClick = { command = preset }) { Text(preset.substringAfterLast(' ')) }
-                    }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground) {
+        Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(16.dp)) {
+              Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.back), maxLines = 1, softWrap = false) }
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.device_actions), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold)
+                    Text((connection as? AdbConnectionState.Connected)?.device?.endpoint?.serial.orEmpty(), style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                OutlinedTextField(command, { command = it }, label = { Text(stringResource(R.string.command_hint)) },
-                    modifier = Modifier.fillMaxWidth(), minLines = 2)
-                Button(onClick = { runOperation {
-                    commandOutput = withContext(Dispatchers.IO) { client.shell(command).text() }
-                    status = completed
-                } }, enabled = isConnected && !loading && command.isNotBlank()) {
-                    Text(stringResource(R.string.run_command))
-                }
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(stringResource(R.string.command_output), style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(8.dp))
-                        Text(commandOutput.ifBlank { stringResource(R.string.no_output) }, fontFamily = FontFamily.Monospace)
-                    }
+              }
+              FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                  verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDisconnect, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.disconnect), maxLines = 1, softWrap = false) }
+                Spacer(Modifier.width(8.dp))
+                Surface(shape = MaterialTheme.shapes.large,
+                    color = if (isConnected) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.errorContainer) {
+                    Text(if (isConnected) stringResource(R.string.status_connected_short)
+                        else stringResource(R.string.status_disconnected),
+                        color = if (isConnected) WeChatBrand else MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium)
                 }
             }
-            1 -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.app_count, apps.size), Modifier.weight(1f),
-                            style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { runOperation { apps = manager.applications() } }, enabled = !loading) {
-                            Text(stringResource(R.string.refresh))
+            }
+            PrimaryTabRow(selectedTabIndex = tab) {
+                listOf(R.string.tab_commands, R.string.tab_apps, R.string.tab_files).forEachIndexed { index, title ->
+                    Tab(selected = tab == index, onClick = { tab = index },
+                        text = { Text(stringResource(title), maxLines = 1) })
+                }
+            }
+            if (loading) CircularProgressIndicator(Modifier.padding(12.dp).size(24.dp))
+            if (status.isNotBlank()) Text(status, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            when (tab) {
+                0 -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(stringResource(R.string.tab_commands), style = MaterialTheme.typography.headlineSmall)
+                    Text(stringResource(R.string.command_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("getprop ro.product.model", "id", "pwd").forEach { preset ->
+                            TextButton(onClick = { command = preset }, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(preset.substringAfterLast(' ')) }
                         }
                     }
-                }
-                items(apps, key = { it.packageName }) { app ->
+                    OutlinedTextField(command, { command = it }, label = { Text(stringResource(R.string.command_hint)) },
+                        modifier = Modifier.fillMaxWidth(), minLines = 2)
+                    Button(onClick = { runOperation {
+                        commandOutput = withContext(Dispatchers.IO) { client.shell(command).text() }
+                        status = completed
+                    } }, enabled = isConnected && !loading && command.isNotBlank(), shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+                        Text(stringResource(R.string.run_command), maxLines = 1, softWrap = false)
+                    }
                     Card(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(14.dp)) {
-                          Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.surfaceVariant) {
-                                Text(app.packageName.substringAfterLast('.').take(1).uppercase(),
-                                    Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(app.packageName, fontWeight = FontWeight.SemiBold,
-                                    maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(if (!app.enabled) stringResource(R.string.app_disabled)
-                                    else if (app.system) stringResource(R.string.app_system) else stringResource(R.string.app_user),
-                                    style = MaterialTheme.typography.labelSmall)
-                            }
-                          }
-                          Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                              TextButton(onClick = { pendingAppAction = app to AppAction.CLEAR_DATA }, modifier = Modifier.weight(1f),
-                                  enabled = isConnected && !loading,
-                                  colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                                  Text(stringResource(R.string.clear_app_data))
-                              }
-                              TextButton(onClick = { pendingAppAction = app to if (app.enabled) AppAction.DISABLE else AppAction.ENABLE },
-                                  modifier = Modifier.weight(1f), enabled = isConnected && !loading,
-                                  colors = ButtonDefaults.textButtonColors(contentColor =
-                                      if (app.enabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)) {
-                                  Text(stringResource(if (app.enabled) R.string.disable_app else R.string.enable_app))
-                              }
-                              TextButton(onClick = { pendingAppAction = app to AppAction.UNINSTALL }, modifier = Modifier.weight(1f),
-                                  enabled = isConnected && !loading,
-                                  colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                                  Text(stringResource(R.string.uninstall_app))
-                              }
-                          }
+                        Column(Modifier.padding(16.dp)) {
+                            Text(stringResource(R.string.command_output), style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(8.dp))
+                            Text(commandOutput.ifBlank { stringResource(R.string.no_output) }, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
-            }
-            2 -> Column(Modifier.fillMaxSize()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                        Text(stringResource(R.string.remote_storage), style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary)
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            val parts = currentPath.split('/').filter { it.isNotEmpty() }
-                            TextButton(onClick = { currentPath = "/"; pathInput = "/" }) { Text("/") }
-                            var prefix = ""
-                            parts.forEach { part ->
-                                prefix += "/$part"
-                                val destination = prefix
-                                Text("›")
-                                TextButton(onClick = { currentPath = destination; pathInput = destination }) {
-                                    Text(part)
-                                }
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OutlinedTextField(pathInput, { pathInput = it },
-                                label = { Text(stringResource(R.string.remote_path_hint)) },
-                                modifier = Modifier.weight(1f), singleLine = true)
-                            TextButton(onClick = { currentPath = DeviceManager.normalize(pathInput.trim()) },
-                                enabled = !loading) { Text(stringResource(R.string.go_to_path)) }
-                        }
+                1 -> LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(stringResource(R.string.file_count, files.size), Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = {
-                                currentPath = DeviceManager.parent(currentPath); pathInput = currentPath
-                            }, enabled = currentPath != "/") { Text(stringResource(R.string.parent_folder)) }
-                            TextButton(onClick = { runOperation { files = manager.files(currentPath) } },
-                                enabled = !loading) { Text(stringResource(R.string.refresh)) }
+                            Text(stringResource(R.string.app_count, apps.size), Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleMedium)
+                            TextButton(onClick = { runOperation { apps = manager.applications() } }, enabled = !loading, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+                                Text(stringResource(R.string.refresh), maxLines = 1, softWrap = false)
+                            }
+                        }
+                    }
+                    items(apps, key = { it.packageName }) { app ->
+                        Card(Modifier.fillMaxWidth()) {
+                            Column(Modifier.padding(16.dp)) {
+                              Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = MaterialTheme.shapes.medium,
+                                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                                    Text(app.packageName.substringAfterLast('.').take(1).uppercase(),
+                                        Modifier.padding(12.dp), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(app.packageName, fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(if (!app.enabled) stringResource(R.string.app_disabled)
+                                        else if (app.system) stringResource(R.string.app_system) else stringResource(R.string.app_user),
+                                        style = MaterialTheme.typography.labelSmall)
+                                }
+                              }
+                              FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                  verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                  TextButton(onClick = { pendingAppAction = app to AppAction.CLEAR_DATA }, modifier = Modifier.width(IntrinsicSize.Max), enabled = isConnected && !loading,
+                                      colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shape = MaterialTheme.shapes.small) {
+                                      Text(stringResource(R.string.clear_app_data), maxLines = 1, softWrap = false)
+                                  }
+                                  TextButton(onClick = { pendingAppAction = app to if (app.enabled) AppAction.DISABLE else AppAction.ENABLE },
+                                      modifier = Modifier.width(IntrinsicSize.Max), enabled = isConnected && !loading,
+                                      colors = ButtonDefaults.textButtonColors(contentColor =
+                                          if (app.enabled) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary), shape = MaterialTheme.shapes.small) {
+                                      Text(stringResource(if (app.enabled) R.string.disable_app else R.string.enable_app), maxLines = 1, softWrap = false)
+                                  }
+                                  TextButton(onClick = { pendingAppAction = app to AppAction.UNINSTALL }, modifier = Modifier.width(IntrinsicSize.Max), enabled = isConnected && !loading,
+                                      colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error), shape = MaterialTheme.shapes.small) {
+                                      Text(stringResource(R.string.uninstall_app), maxLines = 1, softWrap = false)
+                                  }
+                              }
+                            }
                         }
                     }
                 }
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
-                    if (files.isEmpty() && !loading) item {
-                        Text(stringResource(R.string.empty_folder), Modifier.padding(20.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    items(files, key = { it.path }) { entry ->
-                        Row(Modifier.fillMaxWidth()
-                            .clickable(enabled = isConnected && !loading && entry.directory) {
-                                currentPath = entry.path; pathInput = entry.path
-                            }.padding(horizontal = 8.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            val icon = when (entry.type) { "directory" -> "▣"; "link" -> "↗"; else -> "▤" }
-                            Box(Modifier.size(46.dp).clip(MaterialTheme.shapes.medium)
-                                .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                                Text(icon, style = MaterialTheme.typography.titleLarge)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    fontWeight = FontWeight.Medium)
-                                Text(stringResource(R.string.file_summary, typeLabel(entry),
-                                    if (entry.directory) "—" else formatBytes(entry.size), formatTime(entry.modifiedSeconds)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                            }
-                            if (entry.directory || entry.type == "file") {
-                                TextButton(onClick = { download(entry) }, enabled = isConnected && !loading) {
-                                    Text(stringResource(R.string.download))
+                2 -> Column(Modifier.fillMaxSize()) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                            Text(stringResource(R.string.remote_storage), style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary)
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                val parts = currentPath.split('/').filter { it.isNotEmpty() }
+                                TextButton(onClick = { currentPath = "/"; pathInput = "/" }, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text("/") }
+                                var prefix = ""
+                                parts.forEach { part ->
+                                    prefix += "/$part"
+                                    val destination = prefix
+                                    Text("›")
+                                    TextButton(onClick = { currentPath = destination; pathInput = destination }, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+                                        Text(part)
+                                    }
                                 }
                             }
-                            Box {
-                                var menuExpanded by remember { mutableStateOf(false) }
-                                val moreActions = stringResource(R.string.file_actions)
-                                TextButton(onClick = { menuExpanded = true },
-                                    enabled = isConnected && !loading,
-                                    modifier = Modifier.semantics { contentDescription = moreActions }) {
-                                    Text("⋮")
-                                }
-                                DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = {
-                                        menuExpanded = false
-                                        pendingDelete = entry
-                                    })
-                                }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(pathInput, { pathInput = it },
+                                    label = { Text(stringResource(R.string.remote_path_hint)) },
+                                    modifier = Modifier.weight(1f), singleLine = true)
+                                TextButton(onClick = { currentPath = DeviceManager.normalize(pathInput.trim()) },
+                                    enabled = !loading, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.go_to_path), maxLines = 1, softWrap = false) }
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.file_count, files.size), Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = {
+                                    currentPath = DeviceManager.parent(currentPath); pathInput = currentPath
+                                }, enabled = currentPath != "/", shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.parent_folder), maxLines = 1, softWrap = false) }
+                                TextButton(onClick = { runOperation { files = manager.files(currentPath) } },
+                                    enabled = !loading, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.refresh), maxLines = 1, softWrap = false) }
                             }
                         }
-                        HorizontalDivider()
+                    }
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp)) {
+                        if (files.isEmpty() && !loading) item {
+                            Text(stringResource(R.string.empty_folder), Modifier.padding(20.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        items(files, key = { it.path }) { entry ->
+                            Row(Modifier.fillMaxWidth()
+                                .clickable(enabled = isConnected && !loading && entry.directory) {
+                                    currentPath = entry.path; pathInput = entry.path
+                                }.padding(horizontal = 8.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                val icon = when (entry.type) { "directory" -> "▣"; "link" -> "↗"; else -> "▤" }
+                                Box(Modifier.size(46.dp).clip(MaterialTheme.shapes.medium)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                                    Text(icon, style = MaterialTheme.typography.titleLarge)
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        fontWeight = FontWeight.Medium)
+                                    Text(stringResource(R.string.file_summary, typeLabel(entry),
+                                        if (entry.directory) "—" else formatBytes(entry.size), formatTime(entry.modifiedSeconds)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                                }
+                                if (entry.directory || entry.type == "file") {
+                                    TextButton(onClick = { download(entry) }, enabled = isConnected && !loading, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+                                        Text(stringResource(R.string.download), maxLines = 1, softWrap = false)
+                                    }
+                                }
+                                Box {
+                                    var menuExpanded by remember { mutableStateOf(false) }
+                                    val moreActions = stringResource(R.string.file_actions)
+                                    TextButton(onClick = { menuExpanded = true },
+                                        enabled = isConnected && !loading,
+                                        modifier = Modifier.semantics { contentDescription = moreActions }, shape = MaterialTheme.shapes.small) {
+                                        Text("⋮")
+                                    }
+                                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.delete), maxLines = 1, softWrap = false) }, onClick = {
+                                            menuExpanded = false
+                                            pendingDelete = entry
+                                        })
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
                     }
                 }
             }

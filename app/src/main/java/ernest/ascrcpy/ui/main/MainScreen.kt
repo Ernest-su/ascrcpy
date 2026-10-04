@@ -179,10 +179,8 @@ internal fun MainScreen(
       onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier,
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
-      onOpenDevice = { fullscreen = false; managingDevice = true })
-    if (state.connected) {
-      FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
-    }
+      onOpenDevice = { fullscreen = false; managingDevice = true },
+      previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
   }
   val payload = state.qrPayload
   if (payload != null) {
@@ -197,7 +195,7 @@ internal fun MainScreen(
         Text(stringResource(R.string.qr_description))
         Image(bitmap, contentDescription = stringResource(R.string.qr_image_description), modifier = Modifier.fillMaxWidth())
       } },
-      confirmButton = { TextButton(onClick = onStopQr) { Text(stringResource(R.string.stop)) } })
+      confirmButton = { TextButton(onClick = onStopQr, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.stop), maxLines = 1, softWrap = false) } })
   }
 }
 
@@ -228,6 +226,7 @@ private fun NormalScreen(
   onReconnectSavedWireless: () -> Unit,
   onSelectSavedWireless: (String) -> Unit,
   onOpenDevice: () -> Unit,
+  previewControls: @Composable () -> Unit,
 ) {
   Scaffold(modifier.fillMaxSize()) { padding ->
     Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
@@ -239,8 +238,8 @@ private fun NormalScreen(
       Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-          containerColor = MaterialTheme.colorScheme.primaryContainer,
-          contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+          containerColor = MaterialTheme.colorScheme.surface,
+          contentColor = MaterialTheme.colorScheme.onSurface,
         ),
       ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -276,10 +275,9 @@ private fun NormalScreen(
               singleLine = true, enabled = !state.busy && !state.connected)
           }
           if (state.method == ConnectionMethod.TCP && !state.connected) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-              HostHistoryField(state, onHostChange, onDeleteHost, Modifier.weight(1f))
-              Spacer(Modifier.width(12.dp))
-              OutlinedTextField(state.port, onPortChange, Modifier.width(112.dp), label = { Text(stringResource(R.string.port)) },
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              HostHistoryField(state, onHostChange, onDeleteHost, Modifier.fillMaxWidth())
+              OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.port)) },
                 singleLine = true, enabled = !state.busy && !state.connected)
             }
           }
@@ -304,13 +302,13 @@ private fun NormalScreen(
             Text(stringResource(R.string.pairing_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
             OutlinedTextField(state.pairingHost, onPairingHostChange, Modifier.fillMaxWidth(),
               label = { Text(stringResource(R.string.pairing_host)) }, singleLine = true, enabled = !state.busy)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-              OutlinedTextField(state.pairingPort, onPairingPortChange, Modifier.weight(1f),
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              OutlinedTextField(state.pairingPort, onPairingPortChange, Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.pairing_port)) }, singleLine = true, enabled = !state.busy)
-              OutlinedTextField(state.pairingCode, onPairingCodeChange, Modifier.weight(1f),
+              OutlinedTextField(state.pairingCode, onPairingCodeChange, Modifier.fillMaxWidth(),
                 label = { Text(stringResource(R.string.pairing_code)) }, singleLine = true, enabled = !state.busy)
             }
-            OutlinedButton(onPair, enabled = !state.busy) { Text(stringResource(R.string.pair_wireless)) }
+            OutlinedButton(onPair, enabled = !state.busy, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.pair_wireless), maxLines = 1, softWrap = false) }
           }
           if (state.method == ConnectionMethod.WIRELESS_CODE && !state.connected && state.wirelessCodePaired) {
             Text(stringResource(R.string.wireless_connection_description, state.pairingHost),
@@ -318,34 +316,35 @@ private fun NormalScreen(
             OutlinedTextField(state.port, onPortChange, Modifier.fillMaxWidth(),
               label = { Text(stringResource(R.string.wireless_connection_port)) },
               singleLine = true, enabled = !state.busy)
-            OutlinedButton(onClick = onReconnectSavedWireless, enabled = !state.busy) {
-              Text(stringResource(R.string.connect_saved_wireless_device))
+            OutlinedButton(onClick = onReconnectSavedWireless, enabled = !state.busy, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+              Text(stringResource(R.string.connect_saved_wireless_device), maxLines = 1, softWrap = false)
             }
-            TextButton(onClick = onPrepareWirelessPairing, enabled = !state.busy) {
-              Text(stringResource(R.string.pair_different_wireless_device))
+            TextButton(onClick = onPrepareWirelessPairing, enabled = !state.busy, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) {
+              Text(stringResource(R.string.pair_different_wireless_device), maxLines = 1, softWrap = false)
             }
           }
           if (state.method == ConnectionMethod.WIRELESS_QR && !state.connected) {
             Text(stringResource(R.string.qr_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onStartQr, enabled = !state.busy) { Text(stringResource(R.string.pair_qr)) }
+            Button(onStartQr, enabled = !state.busy, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.pair_qr), maxLines = 1, softWrap = false) }
           }
           if (state.method == ConnectionMethod.USB && !state.connected) {
             Text(stringResource(R.string.usb_description), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onConnectUsb, enabled = !state.busy) { Text(stringResource(R.string.connect_usb)) }
+            Button(onConnectUsb, enabled = !state.busy, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.connect_usb), maxLines = 1, softWrap = false) }
           }
           StatusPill(state.connectionState)
-          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+          FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.connected) {
-              Button(onOpenDevice, enabled = !state.busy) { Text(stringResource(R.string.device_management)) }
-              Button(onStartMirroring, enabled = !state.busy && state.scrcpyState !is ScrcpyState.Streaming) { Text(stringResource(R.string.start_mirroring)) }
-              OutlinedButton(onDisconnect, enabled = !state.busy) { Text(stringResource(R.string.disconnect)) }
+              OutlinedButton(onOpenDevice, modifier = Modifier.width(IntrinsicSize.Max), enabled = !state.busy, shape = MaterialTheme.shapes.small) { Text(stringResource(R.string.device_management), maxLines = 1, softWrap = false) }
+              Button(onStartMirroring, modifier = Modifier.width(IntrinsicSize.Max), enabled = !state.busy && state.scrcpyState !is ScrcpyState.Streaming, shape = MaterialTheme.shapes.small) { Text(stringResource(R.string.start_mirroring), maxLines = 1, softWrap = false) }
+              OutlinedButton(onDisconnect, modifier = Modifier.width(IntrinsicSize.Max), enabled = !state.busy, shape = MaterialTheme.shapes.small) { Text(stringResource(R.string.disconnect), maxLines = 1, softWrap = false) }
             } else {
               if (state.method == ConnectionMethod.TCP || state.method == ConnectionMethod.TAILCAT ||
                 (state.method == ConnectionMethod.WIRELESS_CODE && state.wirelessCodePaired))
-              Button(onConnect, enabled = !state.busy &&
-                (if (state.method == ConnectionMethod.TAILCAT) state.tailcatAddress.isNotBlank() else state.host.isNotBlank())) {
+              Button(onConnect, modifier = Modifier.width(IntrinsicSize.Max), enabled = !state.busy &&
+                (if (state.method == ConnectionMethod.TAILCAT) state.tailcatAddress.isNotBlank() else state.host.isNotBlank()), shape = MaterialTheme.shapes.small) {
                 if (state.busy) { CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
-                Text(stringResource(if (state.busy) R.string.connecting else R.string.connect))
+                Text(stringResource(if (state.busy) R.string.connecting else R.string.connect), maxLines = 1, softWrap = false)
               }
             }
           }
@@ -355,10 +354,13 @@ private fun NormalScreen(
         Card(Modifier.fillMaxWidth()) {
           Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-              Text(stringResource(R.string.remote_display), style = MaterialTheme.typography.titleLarge)
-              if (state.scrcpyState !is ScrcpyState.Idle) OutlinedButton(onStopMirroring) { Text(stringResource(R.string.stop)) }
+              Text(stringResource(R.string.remote_display), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+              if (state.scrcpyState !is ScrcpyState.Idle) OutlinedButton(onStopMirroring, shape = MaterialTheme.shapes.small, modifier = Modifier.width(IntrinsicSize.Max)) { Text(stringResource(R.string.stop), maxLines = 1, softWrap = false) }
             }
-            AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxWidth().height(420.dp))
+            Box(Modifier.fillMaxWidth().height(420.dp).clip(MaterialTheme.shapes.medium).background(Color.Black)) {
+              AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
+              previewControls()
+            }
             Text(scrcpyStatus(state.scrcpyState), color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
         }
