@@ -6,6 +6,7 @@ import android.net.nsd.NsdServiceInfo
 import android.net.wifi.WifiManager
 import java.security.SecureRandom
 import java.util.ArrayDeque
+import kotlinx.coroutines.channels.ReceiveChannel
 
 /** One QR pairing attempt. The QR secret is valid only for this discovery session. */
 internal class QrPairing {
@@ -22,6 +23,17 @@ internal class QrPairing {
 
 internal fun isConnectionServiceForGuid(serviceName: String, guid: String): Boolean =
     guid.isNotBlank() && serviceName.contains(guid, ignoreCase = true)
+
+internal suspend fun <T> firstReachableWirelessService(
+    services: ReceiveChannel<T>,
+    matches: (T) -> Boolean,
+    isReachable: suspend (T) -> Boolean,
+): T {
+    while (true) {
+        val candidate = services.receive()
+        if (matches(candidate) && isReachable(candidate)) return candidate
+    }
+}
 
 internal fun String.isTailscaleAddress(): Boolean {
     val normalized = trim().removePrefix("[").removeSuffix("]").lowercase()

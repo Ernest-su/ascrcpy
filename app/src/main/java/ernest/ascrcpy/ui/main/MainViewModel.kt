@@ -28,6 +28,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -228,14 +229,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val guid = client.pairWireless(AdbEndpoint(snapshot.pairingHost, port), snapshot.pairingCode)
         saveWirelessPairing(guid, snapshot.pairingHost, null)
         form.update { copy(console = string(R.string.log_finding_connection, guid)) }
-        val connection = if (discoveryAvailable) withTimeoutOrNull(WIRELESS_DISCOVERY_TIMEOUT_MILLIS) {
-          while (true) {
-            val candidate = connections.receive()
-            if (isConnectionServiceForGuid(candidate.name, guid)) return@withTimeoutOrNull candidate
-          }
-          @Suppress("UNREACHABLE_CODE")
-          null
-        } else null
+        val connection = if (discoveryAvailable) awaitConnectableConnection(
+          connections, guid, snapshot.pairingHost, WIRELESS_DISCOVERY_TIMEOUT_MILLIS,
+        ) else null
         if (connection == null) {
           showWirelessCodeFallback(snapshot.pairingHost, "", guid)
         } else {
@@ -313,14 +309,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     savedReconnectJob = viewModelScope.launch {
       try {
-        val connection = if (discoveryAvailable) withTimeoutOrNull(WIRELESS_DISCOVERY_TIMEOUT_MILLIS) {
-          while (true) {
-            val candidate = connections.receive()
-            if (isConnectionServiceForGuid(candidate.name, guid)) return@withTimeoutOrNull candidate
-          }
-          @Suppress("UNREACHABLE_CODE")
-          null
-        } else null
+        val connection = if (discoveryAvailable) awaitConnectableConnection(
+          connections, guid, pairingHost, WIRELESS_DISCOVERY_TIMEOUT_MILLIS,
+        ) else null
         if (connection == null || form.value.method != ConnectionMethod.WIRELESS_CODE || form.value.connected) {
           if (connection == null && form.value.method == ConnectionMethod.WIRELESS_CODE) {
             form.update { copy(console = string(R.string.log_saved_wireless_not_found)) }
@@ -357,6 +348,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private fun stopSavedReconnect() {
     savedReconnectJob?.cancel(); savedReconnectJob = null
     savedDiscovery?.stop(); savedDiscovery = null
+  }
+
+  private suspend fun awaitConnectableConnection(
+    connections: Channel<WirelessAdbDiscovery.ResolvedService>,
+    guid: String,
+    pairingHost: String,
+    timeoutMillis: Long,
+  ): WirelessAdbDiscovery.ResolvedService? = withTimeoutOrNull(timeoutMillis) {
+    firstReachableWirelessService(
+      connections,
+      matches = { isConnectionServiceForGuid(it.name, guid) },
+    ) { candidate ->
+      probeWireless(wirelessConnectionEndpoint(pairingHost, candidate.host, candidate.port))
+    }
+  }
+
+  private suspend fun probeWireless(endpoint: AdbEndpoint): Boolean {
+    val probe = DefaultAdbClient.factory(getApplication()).create()
+    return try {
+      withTimeout(10_000) { probe.connectWireless(endpoint) }
+      true
+    } catch (_: Exception) {
+      false
+    } finally {
+      probe.close()
+    }
   }
 
   private fun saveWirelessPairing(guid: String, host: String, port: Int?, name: String? = null) {
@@ -399,15 +416,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
               val guid = client.pairWireless(AdbEndpoint(service.host, service.port), qr.password)
               saveWirelessPairing(guid, service.host, null)
               form.update { copy(console = string(R.string.log_finding_connection, guid)) }
-              val connection = withTimeoutOrNull(30_000) {
-                while (true) {
-                  val candidate = connections.receive()
-                  if (isConnectionServiceForGuid(candidate.name, guid))
-                    return@withTimeoutOrNull candidate
-                }
-                @Suppress("UNREACHABLE_CODE")
-                null
-              }
+              val connection = awaitConnectableConnection(connections, guid, service.host, 30_000)
               if (connection == null) {
                 form.update { copy(method = ConnectionMethod.WIRELESS_CODE, pairingHost = service.host,
                   host = service.host, port = "", pairingCode = "", wirelessCodePaired = true,

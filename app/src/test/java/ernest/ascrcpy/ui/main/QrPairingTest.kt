@@ -5,6 +5,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.runBlocking
 
 class QrPairingTest {
   @Test fun createsDistinctAdbPairingSecrets() {
@@ -40,5 +42,21 @@ class QrPairingTest {
   @Test fun automaticConnectionUsesDiscoveredAddressForWifiPairing() {
     assertEquals(AdbEndpoint("192.168.1.25", 37123),
       wirelessConnectionEndpoint("device.local", "192.168.1.25", 37123))
+  }
+
+  @Test fun skipsStaleMatchingServiceAndUsesReachableDuplicate() = runBlocking {
+    val services = Channel<Pair<String, Int>>(Channel.UNLIMITED)
+    services.trySend("adb-guid" to 34241)
+    services.trySend("adb-guid (2)" to 44307)
+
+    val selected = firstReachableWirelessService(
+      services,
+      matches = { (name) -> name.contains("guid") },
+      isReachable = { (_, port) -> port == 44307 },
+    )
+
+    assertEquals(44307, selected.second)
+    services.close()
+    Unit
   }
 }
