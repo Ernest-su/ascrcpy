@@ -137,7 +137,7 @@ checksum 和零值。
 - `localabstract:scrcpy_<scid>`：控制通道。
 
 server shell 不能用简单的 `command &` 启动后立即关闭：部分系统会随 shell stream 结束清理子进程。
-当前实现保持 shell channel 活跃，并在停止会话时通过协程取消关闭它。
+当前实现通过公共 `AdbClient.open("shell:…")` 持有原始 shell channel，并有界缓冲丢弃输出；停止时显式关闭它，同时取消读取任务。不会长期占用 `AdbClient.shell` 的操作互斥锁，因此投屏期间仍可执行诊断和设备管理命令。
 
 ## 4. scrcpy 会话时序
 
@@ -253,7 +253,7 @@ Compose 切换普通/全屏布局时可能短时间创建多个 `SurfaceView`；
 | 层级 | 当前覆盖 | 后续重点 |
 |---|---|---|
 | 独立 `adb` 仓库单元测试 | endpoint 校验 | packet、AUTH、公钥、stream 分发、sync push |
-| `scrcpy` 单元测试 | 待补充 | frame header、control message、状态转换 |
+| `scrcpy` 单元测试 | 服务端输出有界读取与错误/取消传播 | frame header、control message、状态转换 |
 | `app` 单元测试 | 悬浮遥控器边界与展开/收起/贴边/缩放比例运算 | 主题、连接历史筛选 |
 | Compose instrumentation | 断开状态与 Connect 操作、主机历史建议、输入框焦点保持、遥控器拖放与短区域缩放 | 连接/失败/Streaming 状态、坐标映射 |
 | 云设备 E2E | ADB、shell、push、server、1920×1072 streaming | 双设备画面内容、旋转、多点触控、断线重连 |

@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 
 class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private val mutableState = MutableStateFlow<ScrcpyState>(ScrcpyState.Idle)
@@ -27,8 +29,9 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private var controlChannel: AdbChannel? = null
     private var videoJob: Job? = null
     private var serverJob: Job? = null
+    @Volatile private var serverChannel: AdbChannel? = null
     private var controller: ControlMessageWriter? = null
-    private var sessionGeneration = 0L
+    @Volatile private var sessionGeneration = 0L
 
     suspend fun start(server: InputStream, surface: Surface, config: ScrcpyConfig = ScrcpyConfig()) {
         stop()
@@ -47,12 +50,26 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
             }
             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
             serverJob = scope!!.launch {
-                runCatching { adb.shell(command) }
-                    .onFailure {
-                        if (generation == sessionGeneration && it !is kotlinx.coroutines.CancellationException) {
-                            mutableState.value = ScrcpyState.Failed(it)
-                        }
+                var channel: AdbChannel? = null
+                try {
+                    // A long-lived shell() holds the facade's operation mutex, preventing
+                    // diagnostics and device-management shell commands during mirroring.
+                    // Own a raw public channel instead, and drain output without logging it.
+                    channel = adb.open("shell:$command")
+                    if (generation != sessionGeneration) return@launch
+                    serverChannel = channel
+                    drainServerOutput(channel)
+                    if (generation == sessionGeneration && currentCoroutineContext().isActive) {
+                        mutableState.value = ScrcpyState.Failed(IllegalStateException("scrcpy server exited"))
                     }
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    if (generation == sessionGeneration) mutableState.value = ScrcpyState.Failed(error)
+                } finally {
+                    channel?.close()
+                    if (serverChannel === channel) serverChannel = null
+                }
             }
             mutableState.value = ScrcpyState.ConnectingStreams
             val socketName = "scrcpy_${scid.toString(16).padStart(8, '0')}"
@@ -103,6 +120,8 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         videoJob = null
         serverJob?.cancel()
         serverJob = null
+        serverChannel?.close()
+        serverChannel = null
         scope?.cancel()
         scope = null
         videoChannel?.close()
