@@ -53,6 +53,7 @@ internal fun wirelessConnectionEndpoint(
 data class MainUiState(
   val host: String = "192.168.68.59",
   val hostHistory: List<String> = emptyList(),
+  val connectionHistory: List<ConnectionHistoryEntry> = emptyList(),
   val port: String = "5555",
   val tailcatAddress: String = "",
   val method: ConnectionMethod = ConnectionMethod.TCP,
@@ -76,6 +77,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private val savedHosts = preferences.getString(HOST_HISTORY_KEY, null)
     ?.split('\n')?.filter(String::isNotBlank)?.distinct().orEmpty()
   private val savedWirelessDevices = loadSavedWirelessDevices()
+  private val connectionHistory = loadConnectionHistory()
   private val client: AdbClient = DefaultAdbClient.factory(application).create()
   internal val deviceClient: AdbClient get() = client
   private val scrcpy = ScrcpyClient(client)
@@ -89,6 +91,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   private val form = MutableStateFlow(MainUiState(
     host = savedHosts.firstOrNull() ?: "192.168.68.59",
     hostHistory = savedHosts,
+    connectionHistory = connectionHistory,
     savedWirelessDevices = savedWirelessDevices,
   ))
   private var surface: Surface? = null
@@ -101,7 +104,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   val uiState: StateFlow<MainUiState> = combine(form, client.state, scrcpy.state) { current, connection, scrcpyState ->
-    current.copy(connectionState = connection, scrcpyState = scrcpyState)
+    val sessionMessage = scrcpySessionMessage(scrcpyState, string(R.string.unknown_error))
+    current.copy(
+      connectionState = connection,
+      scrcpyState = scrcpyState,
+      console = sessionMessage?.let { string(it.resourceId, *it.arguments.toTypedArray()) } ?: current.console,
+    )
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MainUiState())
 
   fun setHost(value: String) = form.update { copy(host = value.trim()) }
@@ -130,6 +138,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val updated = form.value.hostHistory.filterNot { it == host }
     preferences.edit().putString(HOST_HISTORY_KEY, updated.joinToString("\n")).apply()
     form.update { copy(hostHistory = updated) }
+  }
+
+  fun selectConnectionHistory(key: String) {
+    val entry = form.value.connectionHistory.firstOrNull { it.key == key } ?: return
+    form.update {
+      copy(
+        method = entry.method,
+        host = entry.host,
+        port = entry.port,
+        tailcatAddress = entry.tailcatAddress,
+        pairingPort = entry.pairingPort,
+        pairingCode = "",
+      )
+    }
+  }
+
+  fun deleteConnectionHistory(key: String) {
+    val updated = form.value.connectionHistory.filterNot { it.key == key }
+    persistConnectionHistory(updated)
+    form.update { copy(connectionHistory = updated) }
   }
 
   fun connect() {
@@ -167,6 +195,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       }
         .onSuccess { device ->
           shouldMirror = true
+          rememberConnection(snapshot)
           if (snapshot.method == ConnectionMethod.WIRELESS_CODE) {
             snapshot.selectedWirelessGuid?.let { guid ->
               saveWirelessPairing(guid, snapshot.host, port, deviceName(device, snapshot.host))
@@ -198,34 +227,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     form.update { copy(busy = true, console = string(R.string.log_starting_tailcat)) }
     viewModelScope.launch {
+      var keepForwarder = false
       try {
         val pairingPort = ports?.pairing
         val remotePorts = if (pair && pairingPort != null) listOf(pairingPort, connectionPort) else listOf(connectionPort)
-        val mappings = tailcat.start(snapshot.tailcatAddress, remotePorts)
+        val mappings = try {
+          tailcat.start(snapshot.tailcatAddress, remotePorts)
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Exception) {
+          logTailcatFailure("forwarding", error)
+          form.update { copy(console = string(R.string.log_tailcat_forwarding_failed)) }
+          return@launch
+        }
+        var pairingConfirmed = false
+        var pairingUnconfirmed = false
         if (pair && pairingPort != null) {
           form.update { copy(console = string(R.string.log_pairing)) }
-          withTimeout(30_000) {
-            client.pairWireless(AdbEndpoint("127.0.0.1", mappings.getValue(pairingPort)), snapshot.pairingCode)
+          try {
+            withTimeout(30_000) {
+              client.pairWireless(AdbEndpoint("127.0.0.1", mappings.getValue(pairingPort)), snapshot.pairingCode)
+            }
+            pairingConfirmed = true
+            form.update { copy(pairingCode = "") }
+            android.util.Log.i(TAILCAT_LOG_TAG, "stage=pairing complete")
+          } catch (error: CancellationException) {
+            throw error
+          } catch (error: Exception) {
+            // Some targets commit the key before closing the pairing protocol. Try the TLS
+            // connection before deciding that pairing failed.
+            pairingUnconfirmed = true
+            logTailcatFailure("pairing", error)
           }
-          form.update { copy(pairingCode = "") }
-          android.util.Log.i("TailcatSession", "pairing complete")
         }
-        val device = withTimeout(30_000) {
-          client.connectWireless(AdbEndpoint("127.0.0.1", mappings.getValue(connectionPort)))
+        val device = try {
+          withTimeout(30_000) {
+            client.connectWireless(AdbEndpoint("127.0.0.1", mappings.getValue(connectionPort)))
+          }
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Exception) {
+          logTailcatFailure("tls_connect", error)
+          val message = tailcatConnectionFailureMessage(pairingConfirmed, pairingUnconfirmed)
+          form.update { copy(console = string(message)) }
+          return@launch
         }
+        keepForwarder = true
         shouldMirror = true
-        form.update { copy(console = string(R.string.log_connected, device.banner)) }
-        android.util.Log.i("TailcatSession", "TLS ADB connected state=${client.state.value.javaClass.simpleName}")
+        rememberConnection(snapshot)
+        form.update { copy(console = string(R.string.log_connected, device.banner),
+          pairingCode = if (pair) "" else pairingCode) }
+        android.util.Log.i(TAILCAT_LOG_TAG,
+          "stage=tls_connect complete state=${client.state.value.javaClass.simpleName}" +
+            if (pairingUnconfirmed) " pairing_recovered=true" else "")
         scheduleMirroring()
       } catch (error: CancellationException) {
-        tailcat.stop()
         throw error
-      } catch (_: Exception) {
-        tailcat.stop()
-        // Library and child-process errors can contain endpoint credentials; show a localized safe message.
+      } catch (error: Exception) {
+        logTailcatFailure("unexpected", error)
         form.update { copy(console = string(R.string.log_tailcat_wireless_failed)) }
-        android.util.Log.w("TailcatSession", "wireless session failed")
       } finally {
+        if (!keepForwarder) tailcat.stop()
         form.update { copy(busy = false) }
       }
     }
@@ -618,6 +680,51 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     form.update { copy(hostHistory = updated) }
   }
 
+  private fun rememberConnection(state: MainUiState) {
+    val entry = when (state.method) {
+      ConnectionMethod.TCP -> ConnectionHistoryEntry(state.method, host = state.host, port = state.port)
+      ConnectionMethod.TAILCAT -> ConnectionHistoryEntry(state.method, port = state.port,
+        tailcatAddress = state.tailcatAddress)
+      ConnectionMethod.TAILCAT_WIRELESS -> ConnectionHistoryEntry(state.method, port = state.port,
+        tailcatAddress = state.tailcatAddress, pairingPort = state.pairingPort)
+      else -> return
+    }
+    val updated = updateConnectionHistory(form.value.connectionHistory, entry, MAX_CONNECTION_HISTORY_PER_METHOD)
+    persistConnectionHistory(updated)
+    form.update { copy(connectionHistory = updated) }
+  }
+
+  private fun loadConnectionHistory(): List<ConnectionHistoryEntry> = runCatching {
+    val stored = preferences.getString(CONNECTION_HISTORY_KEY, null)
+    if (stored == null) return@runCatching savedHosts.map {
+      ConnectionHistoryEntry(ConnectionMethod.TCP, host = it, port = "5555")
+    }.take(MAX_CONNECTION_HISTORY_PER_METHOD)
+    val array = JSONArray(stored)
+    buildList {
+      for (index in 0 until array.length()) {
+        val item = array.optJSONObject(index) ?: continue
+        val method = runCatching { ConnectionMethod.valueOf(item.optString("method")) }.getOrNull()
+          ?: continue
+        if (method !in HISTORY_METHODS) continue
+        add(ConnectionHistoryEntry(method, item.optString("host"), item.optString("port"),
+          item.optString("tailcatAddress"), item.optString("pairingPort")))
+      }
+    }.distinctBy(ConnectionHistoryEntry::key).let {
+      limitConnectionHistory(it, MAX_CONNECTION_HISTORY_PER_METHOD)
+    }
+  }.getOrDefault(emptyList())
+
+  private fun persistConnectionHistory(history: List<ConnectionHistoryEntry>) {
+    val array = JSONArray()
+    history.forEach { entry -> array.put(JSONObject()
+      .put("method", entry.method.name)
+      .put("host", entry.host)
+      .put("port", entry.port)
+      .put("tailcatAddress", entry.tailcatAddress)
+      .put("pairingPort", entry.pairingPort)) }
+    preferences.edit().putString(CONNECTION_HISTORY_KEY, array.toString()).apply()
+  }
+
   private fun loadSavedWirelessDevices(): List<SavedWirelessDevice> = runCatching {
     val array = JSONArray(preferences.getString(SAVED_WIRELESS_DEVICES_KEY, "[]"))
     buildList {
@@ -653,14 +760,50 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     getApplication<Application>().getString(id, *arguments)
 
   private companion object {
+    const val TAILCAT_LOG_TAG = "TailcatSession"
     const val WIRELESS_DISCOVERY_TIMEOUT_MILLIS = 30_000L
     const val SAVED_WIRELESS_DEVICES_KEY = "saved_wireless_devices_v2"
     const val SELECTED_WIRELESS_GUID_KEY = "selected_wireless_guid_v2"
     const val MAX_SAVED_WIRELESS_DEVICES = 20
     const val HOST_HISTORY_KEY = "hosts"
+    const val CONNECTION_HISTORY_KEY = "connection_history_v1"
     const val MAX_HOST_HISTORY = 20
+    const val MAX_CONNECTION_HISTORY_PER_METHOD = 10
+    val HISTORY_METHODS = setOf(ConnectionMethod.TCP, ConnectionMethod.TAILCAT,
+      ConnectionMethod.TAILCAT_WIRELESS)
     const val SURFACE_SETTLE_DELAY_MILLIS = 300L
   }
+}
+
+private fun logTailcatFailure(stage: String, error: Exception) {
+  // Exception messages may contain endpoint details, so log only the failure class.
+  android.util.Log.w("TailcatSession", "stage=$stage failed type=${error.javaClass.simpleName}")
+}
+
+@StringRes
+internal fun tailcatConnectionFailureMessage(
+  pairingConfirmed: Boolean,
+  pairingUnconfirmed: Boolean,
+): Int = when {
+  pairingConfirmed -> R.string.log_tailcat_paired_connection_failed
+  pairingUnconfirmed -> R.string.log_tailcat_pairing_unconfirmed
+  else -> R.string.log_tailcat_connection_failed
+}
+
+internal data class SessionMessage(
+  @param:StringRes val resourceId: Int,
+  val arguments: List<Any> = emptyList(),
+)
+
+internal fun scrcpySessionMessage(state: ScrcpyState, unknownError: String): SessionMessage? = when (state) {
+  ScrcpyState.Idle -> null
+  ScrcpyState.InstallingServer -> SessionMessage(R.string.scrcpy_installing)
+  ScrcpyState.StartingServer -> SessionMessage(R.string.scrcpy_starting)
+  ScrcpyState.ConnectingStreams -> SessionMessage(R.string.scrcpy_connecting_streams)
+  is ScrcpyState.Streaming -> SessionMessage(R.string.scrcpy_streaming,
+    listOf(state.videoSize.width, state.videoSize.height))
+  is ScrcpyState.Failed -> SessionMessage(R.string.scrcpy_failed,
+    listOf(state.cause.message ?: unknownError))
 }
 
 private inline fun MutableStateFlow<MainUiState>.update(transform: MainUiState.() -> MainUiState) {

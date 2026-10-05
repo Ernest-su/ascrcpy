@@ -53,6 +53,8 @@
     <string name="stop">Stop</string>
     <string name="session_log">Session log</string>
     <string name="delete_host">Delete %1$s</string>
+    <string name="connection_history">Recent connections</string>
+    <string name="delete_connection_history">Delete connection %1$s</string>
     <string name="floating_remote_control">Floating remote control</string>
     <string name="power">Power</string>
     <string name="direction_up">Up</string>
@@ -152,4 +154,8 @@
     <string name="tailcat_connect_paired">Connect paired device</string>
     <string name="log_invalid_tailcat_pairing">Enter distinct pairing and connection ports (1–65535) and a six-digit code.</string>
     <string name="log_tailcat_wireless_failed">Tailcat wireless connection failed. Check the current address, shared ports and code, keep the pairing dialog open, and retry. If pairing succeeded, use Connect paired device.</string>
+    <string name="log_tailcat_forwarding_failed">Could not start the Tailcat forwarding tunnel. Check the Tailcat address and shared ports.</string>
+    <string name="log_tailcat_pairing_unconfirmed">Pairing could not be confirmed and the TLS connection failed. If the target shows this controller as paired, check the current connection port and use Connect paired device.</string>
+    <string name="log_tailcat_paired_connection_failed">Pairing succeeded, but the TLS connection failed. Check the current connection port and use Connect paired device.</string>
+    <string name="log_tailcat_connection_failed">Could not connect to the paired device. Check the current TLS connection port and retry.</string>
 </resources>

@@ -53,6 +53,8 @@
     <string name="stop">停止</string>
     <string name="session_log">会话日志</string>
     <string name="delete_host">删除 %1$s</string>
+    <string name="connection_history">最近连接</string>
+    <string name="delete_connection_history">删除连接 %1$s</string>
     <string name="floating_remote_control">悬浮遥控器</string>
     <string name="power">电源</string>
     <string name="direction_up">上</string>
@@ -152,4 +154,8 @@
     <string name="tailcat_connect_paired">连接已配对设备</string>
     <string name="log_invalid_tailcat_pairing">请输入不同的配对与连接端口（1–65535）及六位配对码。</string>
     <string name="log_tailcat_wireless_failed">Tailcat 无线连接失败。请检查当前地址、共享端口与配对码，保持配对窗口打开并重试。若配对已成功，请使用连接已配对设备。</string>
+    <string name="log_tailcat_forwarding_failed">无法启动 Tailcat 转发隧道，请检查 Tailcat 地址和共享端口。</string>
+    <string name="log_tailcat_pairing_unconfirmed">无法确认配对结果，且 TLS 连接失败。若目标设备已显示此控制端为已配对，请检查当前连接端口并使用“连接已配对设备”。</string>
+    <string name="log_tailcat_paired_connection_failed">配对成功，但 TLS 连接失败。请检查当前连接端口并使用“连接已配对设备”。</string>
+    <string name="log_tailcat_connection_failed">无法连接已配对设备，请检查当前 TLS 连接端口后重试。</string>
 </resources>

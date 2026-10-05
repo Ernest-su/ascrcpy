@@ -1,10 +1,20 @@
 package ernest.ascrcpy.ui.main
 
+import ernest.ascrcpy.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TailcatForwarderTest {
+  @Test fun tailcatConnectionFailureDistinguishesPairingOutcome() {
+    assertEquals(R.string.log_tailcat_paired_connection_failed,
+      tailcatConnectionFailureMessage(pairingConfirmed = true, pairingUnconfirmed = false))
+    assertEquals(R.string.log_tailcat_pairing_unconfirmed,
+      tailcatConnectionFailureMessage(pairingConfirmed = false, pairingUnconfirmed = true))
+    assertEquals(R.string.log_tailcat_connection_failed,
+      tailcatConnectionFailureMessage(pairingConfirmed = false, pairingUnconfirmed = false))
+  }
+
   @Test fun suppliesWritableConfigEnvironmentForAndroidChildProcess() {
     val environment = mutableMapOf("HOME" to "/", "XDG_CONFIG_HOME" to "/read-only")
 

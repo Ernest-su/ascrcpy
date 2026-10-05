@@ -110,7 +110,7 @@ class MainScreenTest {
     }
 
     composeTestRule.onNodeWithText("Living room phone").assertExists()
-    composeTestRule.onNodeWithText("Bedroom TV").performClick()
+    composeTestRule.onNodeWithText("Bedroom TV").performScrollTo().performClick()
     composeTestRule.runOnIdle { assertEquals("guid-tv", selected) }
   }
 
@@ -287,6 +287,30 @@ class MainScreenTest {
     composeTestRule.onNodeWithText(text(R.string.tailcat_connect_paired)).performScrollTo().performClick()
     assertEquals(1, pairing)
     assertEquals(1, reconnecting)
+  }
+
+  @Test fun connectionHistoryIsFilteredByMethodAndSelectable() {
+    val tcp = ConnectionHistoryEntry(ConnectionMethod.TCP, host = "192.168.1.20", port = "5555")
+    val tailcat = ConnectionHistoryEntry(ConnectionMethod.TAILCAT, port = "5555",
+      tailcatAddress = "example.tailcat")
+    var selected = ""
+    var deleted = ""
+    composeTestRule.setContent {
+      MainScreen(
+        MainUiState(method = ConnectionMethod.TCP, connectionHistory = listOf(tcp, tailcat)),
+        {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _, _, _, _ -> }, {}, {},
+        onSelectConnectionHistory = { selected = it },
+        onDeleteConnectionHistory = { deleted = it },
+      )
+    }
+
+    composeTestRule.onNodeWithText(tcp.summary).performScrollTo().performClick()
+    assertEquals(tcp.key, selected)
+    composeTestRule.onNodeWithText(tailcat.summary).assertDoesNotExist()
+    composeTestRule.onNodeWithContentDescription(
+      composeTestRule.activity.getString(R.string.delete_connection_history, tcp.summary),
+    ).performClick()
+    assertEquals(tcp.key, deleted)
   }
 
 }

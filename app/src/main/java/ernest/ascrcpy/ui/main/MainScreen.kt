@@ -122,7 +122,8 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::setMethod, viewModel::setPairingHost, viewModel::setPairingPort,
     viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
     viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress, viewModel::prepareWirelessPairing,
-    viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice, viewModel.deviceClient)
+    viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice, viewModel.deviceClient,
+    viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory)
 }
 
 @Composable
@@ -154,6 +155,8 @@ internal fun MainScreen(
   onReconnectSavedWireless: () -> Unit = {},
   onSelectSavedWireless: (String) -> Unit = {},
   deviceClient: AdbClient? = null,
+  onSelectConnectionHistory: (String) -> Unit = {},
+  onDeleteConnectionHistory: (String) -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
@@ -179,6 +182,7 @@ internal fun MainScreen(
       onStartMirroring, onStopMirroring, onSurfaceCreated, onSurfaceDestroyed, onTouch, onDeleteHost, modifier,
       onMethodChange, onPairingHostChange, onPairingPortChange, onPairingCodeChange, onPair, onStartQr, onConnectUsb,
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
+      onSelectConnectionHistory, onDeleteConnectionHistory,
       onOpenDevice = { fullscreen = false; managingDevice = true },
       previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
   }
@@ -225,6 +229,8 @@ private fun NormalScreen(
   onPrepareWirelessPairing: () -> Unit,
   onReconnectSavedWireless: () -> Unit,
   onSelectSavedWireless: (String) -> Unit,
+  onSelectConnectionHistory: (String) -> Unit,
+  onDeleteConnectionHistory: (String) -> Unit,
   onOpenDevice: () -> Unit,
   previewControls: @Composable () -> Unit,
 ) {
@@ -265,6 +271,15 @@ private fun NormalScreen(
                 }))
               }
             }
+          }
+          if (!state.connected && state.method in setOf(ConnectionMethod.TCP, ConnectionMethod.TAILCAT,
+              ConnectionMethod.TAILCAT_WIRELESS)) {
+            ConnectionHistoryList(
+              entries = state.connectionHistory.filter { it.method == state.method },
+              enabled = !state.busy,
+              onSelect = onSelectConnectionHistory,
+              onDelete = onDeleteConnectionHistory,
+            )
           }
           if (state.method == ConnectionMethod.TAILCAT) {
             OutlinedTextField(state.tailcatAddress, onTailcatAddressChange, Modifier.fillMaxWidth(),
@@ -395,6 +410,32 @@ private fun NormalScreen(
           }
         }
       }
+    }
+  }
+}
+
+@Composable
+private fun ConnectionHistoryList(
+  entries: List<ConnectionHistoryEntry>,
+  enabled: Boolean,
+  onSelect: (String) -> Unit,
+  onDelete: (String) -> Unit,
+) {
+  if (entries.isEmpty()) return
+  Text(stringResource(R.string.connection_history), style = MaterialTheme.typography.titleMedium)
+  entries.forEach { entry ->
+    Row(
+      Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        .clickable(enabled = enabled) { onSelect(entry.key) },
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
+      Text(entry.summary, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+      val deleteDescription = stringResource(R.string.delete_connection_history, entry.summary)
+      IconButton(
+        onClick = { onDelete(entry.key) },
+        enabled = enabled,
+        modifier = Modifier.size(40.dp).semantics { contentDescription = deleteDescription },
+      ) { DeleteIcon() }
     }
   }
 }
