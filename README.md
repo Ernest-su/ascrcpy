@@ -240,3 +240,5 @@ adb -s CONTROLLER shell am instrument -w -r \
 ```
 
 The test deletes the input after reading it. Provision it after installation, because Gradle device tests may clear app data. Use a second target, keep its current pairing dialog open, and keep credentials out of command arguments, tracked files and test logs. The controller log tag `TailcatSession` contains a short SHA-256 route fingerprint and remote/local ports; `TailcatDeviceTest` reports verified phases and streaming dimensions.
+
+The remote includes a screen off/on toggle to the left of Power, keeping mirroring active while the target display is off. Its state tracks the last sent request and resets for each session.

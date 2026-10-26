@@ -67,6 +67,7 @@ data class MainUiState(
   val connectionState: AdbConnectionState = AdbConnectionState.Disconnected,
   val console: String = "",
   val busy: Boolean = false,
+  val displayPower: Boolean = true,
   val scrcpyState: ScrcpyState = ScrcpyState.Idle,
 ) {
   val connected: Boolean get() = connectionState is AdbConnectionState.Connected
@@ -103,11 +104,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     restoreSavedWirelessPairing()
   }
 
-  val uiState: StateFlow<MainUiState> = combine(form, client.state, scrcpy.state) { current, connection, scrcpyState ->
+  val uiState: StateFlow<MainUiState> = combine(form, client.state, scrcpy.state, scrcpy.displayPower) { current, connection, scrcpyState, displayPower ->
     val sessionMessage = scrcpySessionMessage(scrcpyState, string(R.string.unknown_error))
     current.copy(
       connectionState = connection,
       scrcpyState = scrcpyState,
+      displayPower = displayPower,
       console = sessionMessage?.let { string(it.resourceId, *it.arguments.toTypedArray()) } ?: current.console,
     )
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MainUiState())
@@ -655,6 +657,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
   fun injectTouch(action: Int, pointerId: Long, x: Int, y: Int, pressure: Float) {
     viewModelScope.launch { scrcpy.injectTouch(action, pointerId, x, y, pressure) }
+  }
+
+  fun toggleDisplayPower() {
+    viewModelScope.launch {
+      try { scrcpy.toggleDisplayPower() }
+      catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+      catch (_: Exception) { form.update { copy(console = string(R.string.display_power_failed)) } }
+    }
   }
 
   fun injectKey(keyCode: Int) {

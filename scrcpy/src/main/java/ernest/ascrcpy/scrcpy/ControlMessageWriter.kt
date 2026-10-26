@@ -40,6 +40,10 @@ class ControlMessageWriter(private val channel: AdbChannel) {
         channel.write(message)
     }
 
+    suspend fun setDisplayPower(on: Boolean) {
+        channel.write(byteArrayOf(10, if (on) 1 else 0))
+    }
+
     private companion object {
         const val TYPE_INJECT_KEYCODE: Byte = 0
         const val TYPE_INJECT_TOUCH: Byte = 2

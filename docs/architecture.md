@@ -107,7 +107,7 @@ Tailcat 连接由 `app` 的 `TailcatForwarder` 管理官方 Tailcat 进程。它
 |---|---|
 | `ScrcpyClient` | 上传/启动 server、打开通道、管理协程与关闭顺序 |
 | `VideoStreamDecoder` | 解析 codec/session/frame 元数据并驱动 `MediaCodec` |
-| `ControlMessageWriter` | 序列化触摸和按键控制消息 |
+| `ControlMessageWriter` | 序列化触摸、按键和显示电源控制消息 |
 | `ScrcpyConfig` | 分辨率、码率、最大帧率配置 |
 | `ScrcpyState` | 安装、启动、连接、播放、失败状态 |
 
@@ -235,7 +235,7 @@ Idle → InstallingServer → StartingServer → ConnectingStreams → Streaming
 
 连接成功后 `MainViewModel` 会在视频 Surface 就绪时自动启动 scrcpy。UI 默认进入隐藏系统栏的
 沉浸式预览；悬浮遥控器可整体拖动，靠近屏幕两侧时吸附并收缩为遥控器图标，从边缘拖出后恢复完整面板。
-面板提供方向/确定/返回/Home/菜单、音量加减和红色电源按键；长按收缩后的图标或点击展开后左上角按钮，可在全屏预览与普通主界面之间切换。
+面板提供方向/确定/返回/Home/菜单、音量加减和红色电源按键；电源键左侧提供关闭/打开目标屏幕的切换按钮，使用 scrcpy 4.0 的 type=10 加布尔值控制消息，关闭实体屏幕时继续投屏。切换状态表示最后成功发送的请求，并非设备状态回读；会话结束后重置，外部实体按键操作不会同步。长按收缩后的图标或点击展开后左上角按钮，可在全屏预览与普通主界面之间切换。
 视频可延伸到屏幕裁切区，但全屏悬浮控件始终受 safe-drawing insets 约束。普通主界面的遥控器仅在预览容器内拖动和缩放，避免覆盖连接操作与日志。
 
 控制端旋转和窗口尺寸变化由 `MainActivity` 原地处理，不能仅因配置变化重建 Activity 并关闭连接。

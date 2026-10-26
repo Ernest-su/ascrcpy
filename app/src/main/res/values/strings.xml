@@ -158,4 +158,7 @@
     <string name="log_tailcat_pairing_unconfirmed">Pairing could not be confirmed and the TLS connection failed. If the target shows this controller as paired, check the current connection port and use Connect paired device.</string>
     <string name="log_tailcat_paired_connection_failed">Pairing succeeded, but the TLS connection failed. Check the current connection port and use Connect paired device.</string>
     <string name="log_tailcat_connection_failed">Could not connect to the paired device. Check the current TLS connection port and retry.</string>
+    <string name="turn_screen_off">Turn screen off</string>
+    <string name="turn_screen_on">Turn screen on</string>
+    <string name="display_power_failed">Could not change display power</string>
 </resources>

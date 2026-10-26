@@ -24,6 +24,11 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
     private val mutableState = MutableStateFlow<ScrcpyState>(ScrcpyState.Idle)
     val state: StateFlow<ScrcpyState> = mutableState.asStateFlow()
 
+    private val mutableDisplayPower = MutableStateFlow(true)
+    /** Last requested display power; the server does not acknowledge physical display state. */
+    val displayPower: StateFlow<Boolean> = mutableDisplayPower.asStateFlow()
+    private val displayPowerMutex = kotlinx.coroutines.sync.Mutex()
+
     private var scope: CoroutineScope? = null
     private var videoChannel: AdbChannel? = null
     private var controlChannel: AdbChannel? = null
@@ -109,6 +114,20 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         controller?.injectKey(action, keyCode)
     }
 
+    suspend fun toggleDisplayPower() {
+        displayPowerMutex.lock()
+        try {
+            if (state.value !is ScrcpyState.Streaming) return
+            val writer = controller ?: return
+            val generation = sessionGeneration
+            val on = !mutableDisplayPower.value
+            writer.setDisplayPower(on)
+            if (generation == sessionGeneration) mutableDisplayPower.value = on
+        } finally {
+            displayPowerMutex.unlock()
+        }
+    }
+
     fun stop() {
         sessionGeneration++
         stopChannels()
@@ -129,6 +148,7 @@ class ScrcpyClient(private val adb: AdbClient) : Closeable {
         controlChannel?.close()
         controlChannel = null
         controller = null
+        mutableDisplayPower.value = true
     }
 
     private suspend fun openWithRetry(service: String): AdbChannel {

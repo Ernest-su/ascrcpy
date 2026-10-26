@@ -123,7 +123,7 @@ fun MainScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     viewModel::setPairingCode, viewModel::pairWithCode, viewModel::startQrPairing,
     viewModel::stopQrPairing, connectUsb, viewModel::setTailcatAddress, viewModel::prepareWirelessPairing,
     viewModel::reconnectSavedWirelessDevice, viewModel::selectSavedWirelessDevice, viewModel.deviceClient,
-    viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory)
+    viewModel::selectConnectionHistory, viewModel::deleteConnectionHistory, viewModel::toggleDisplayPower)
 }
 
 @Composable
@@ -157,6 +157,7 @@ internal fun MainScreen(
   deviceClient: AdbClient? = null,
   onSelectConnectionHistory: (String) -> Unit = {},
   onDeleteConnectionHistory: (String) -> Unit = {},
+  onToggleDisplayPower: () -> Unit = {},
 ) {
   var fullscreen by remember(state.connected) { mutableStateOf(state.connected) }
   var managingDevice by rememberSaveable { mutableStateOf(false) }
@@ -175,7 +176,7 @@ internal fun MainScreen(
   if (state.connected && fullscreen) {
     Box(modifier.fillMaxSize().background(Color.Black)) {
       AspectRatioRemoteSurface(videoSize, onSurfaceCreated, onSurfaceDestroyed, onTouch, Modifier.fillMaxSize())
-      FloatingRemote(onKey, { fullscreen = false }, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
+      FloatingRemote(onKey, { fullscreen = false }, state.displayPower, onToggleDisplayPower, remoteState, Modifier.fillMaxSize().safeDrawingPadding())
     }
   } else {
     NormalScreen(state, videoSize, onHostChange, onPortChange, onConnect, onDisconnect,
@@ -184,7 +185,7 @@ internal fun MainScreen(
       onTailcatAddressChange, onPrepareWirelessPairing, onReconnectSavedWireless, onSelectSavedWireless,
       onSelectConnectionHistory, onDeleteConnectionHistory,
       onOpenDevice = { fullscreen = false; managingDevice = true },
-      previewControls = { FloatingRemote(onKey, { fullscreen = true }, remoteState, Modifier.fillMaxSize()) })
+      previewControls = { FloatingRemote(onKey, { fullscreen = true }, state.displayPower, onToggleDisplayPower, remoteState, Modifier.fillMaxSize()) })
   }
   val payload = state.qrPayload
   if (payload != null) {
@@ -569,6 +570,8 @@ private fun Context.findActivity(): Activity? = when (this) {
 private fun FloatingRemote(
   onKey: (Int) -> Unit,
   onToggleFullscreen: () -> Unit,
+  displayPower: Boolean,
+  onToggleDisplayPower: () -> Unit,
   state: FloatingRemoteState,
   modifier: Modifier = Modifier,
 ) {
@@ -633,7 +636,7 @@ private fun FloatingRemote(
         RemoteGlyph(RemoteIcon.RemoteControl, Color.White.copy(.92f), Modifier.size(23.dp))
       }
     } else {
-      MiniRemote(onKey, onToggleFullscreen, metrics, dragModifier)
+      MiniRemote(onKey, onToggleFullscreen, displayPower, onToggleDisplayPower, metrics, dragModifier)
     }
   }
 }
@@ -829,13 +832,16 @@ private val FloatingRemoteStateSaver = listSaver<FloatingRemoteState, Any>(
  * remote always looks and behaves the same and only its proportions shrink to fit.
  */
 @Composable
-private fun MiniRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, metrics: RemoteMetrics, modifier: Modifier = Modifier) {
+private fun MiniRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, displayPower: Boolean, onToggleDisplayPower: () -> Unit, metrics: RemoteMetrics, modifier: Modifier = Modifier) {
   Column(modifier.background(WeChatOverlayStrong, RoundedCornerShape(20.dp)).padding(metrics.padding),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.spacedBy(metrics.keySpacing)) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
       RemoteButton(RemoteIcon.Fullscreen, stringResource(R.string.toggle_fullscreen),
         metrics.powerSize, metrics.powerIconSize, onClick = onToggleFullscreen)
+      RemoteButton(if (displayPower) RemoteIcon.ScreenOff else RemoteIcon.ScreenOn,
+        stringResource(if (displayPower) R.string.turn_screen_off else R.string.turn_screen_on),
+        metrics.powerSize, metrics.powerIconSize, onClick = onToggleDisplayPower)
       RemoteKey(RemoteIcon.Power, R.string.power, KeyEvent.KEYCODE_POWER, onKey, metrics,
         buttonSize = metrics.powerSize, iconSize = metrics.powerIconSize, tint = WeChatDanger)
     }
@@ -862,7 +868,7 @@ private fun MiniRemote(onKey: (Int) -> Unit, onToggleFullscreen: () -> Unit, met
   }
 }
 
-private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Menu, Power, VolumeDown, VolumeUp, RemoteControl, Fullscreen }
+private enum class RemoteIcon { Up, Down, Left, Right, Confirm, Back, Home, Menu, Power, ScreenOff, ScreenOn, VolumeDown, VolumeUp, RemoteControl, Fullscreen }
 
 /** A remote key wired to a single Android key code, sized from [metrics]. */
 @Composable
@@ -924,6 +930,14 @@ private fun RemoteGlyph(icon: RemoteIcon, tint: Color, modifier: Modifier = Modi
         RemoteIcon.Menu -> repeat(3) { i ->
           val y = size.height * (.28f + i * .22f)
           drawLine(white, Offset(size.width * .2f, y), Offset(size.width * .8f, y), stroke, StrokeCap.Round)
+        }
+        RemoteIcon.ScreenOff, RemoteIcon.ScreenOn -> {
+          drawRoundRect(white, topLeft = Offset(size.width * .2f, size.height * .1f),
+            size = androidx.compose.ui.geometry.Size(size.width * .6f, size.height * .8f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.width * .06f), style = Stroke(stroke))
+          if (icon == RemoteIcon.ScreenOff) drawLine(white, Offset(size.width * .1f, size.height * .1f),
+            Offset(size.width * .9f, size.height * .9f), stroke, StrokeCap.Round)
+          else drawCircle(white, size.minDimension * .08f, Offset(size.width * .5f, size.height * .5f))
         }
         RemoteIcon.Power -> {
           drawArc(white, -52f, 284f, false, topLeft = Offset(size.width * .17f, size.height * .2f),

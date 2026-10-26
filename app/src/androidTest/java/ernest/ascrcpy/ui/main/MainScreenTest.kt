@@ -168,6 +168,28 @@ class MainScreenTest {
   }
 
   @Test
+  fun screenPowerToggleStaysLeftOfPowerAndSurvivesFullscreenSwitch() {
+    val powerOn = mutableStateOf(true)
+    composeTestRule.setContent {
+      AScrcpyTheme {
+        MainScreen(MainUiState(connectionState = connectedState(),
+          scrcpyState = ScrcpyState.Streaming(VideoSize(1920, 1080)), displayPower = powerOn.value),
+          {}, {}, {}, {}, {}, {}, {}, {}, {}, { _, _, _, _, _ -> }, {}, {},
+          onToggleDisplayPower = { powerOn.value = !powerOn.value })
+      }
+    }
+    composeTestRule.onNodeWithContentDescription(text(R.string.floating_remote_control)).performClick()
+    val screen = composeTestRule.onNodeWithContentDescription(text(R.string.turn_screen_off))
+    val power = composeTestRule.onNodeWithContentDescription(text(R.string.power))
+    assertTrue(screen.fetchSemanticsNode().boundsInRoot.right <= power.fetchSemanticsNode().boundsInRoot.left)
+    screen.performClick()
+    composeTestRule.onNodeWithContentDescription(text(R.string.turn_screen_on)).assertExists()
+    composeTestRule.onNodeWithContentDescription(text(R.string.toggle_fullscreen)).performClick()
+    composeTestRule.onNodeWithContentDescription(text(R.string.turn_screen_on)).performClick()
+    composeTestRule.onNodeWithContentDescription(text(R.string.turn_screen_off)).assertExists()
+  }
+
+  @Test
   fun draggedRemoteStaysWhereItWasDropped() {
     composeTestRule.setContent {
       MainScreen(MainUiState(connectionState = connectedState(), scrcpyState = ScrcpyState.Streaming(VideoSize(1920, 1080))),
