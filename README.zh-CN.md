@@ -12,6 +12,9 @@
 它直连目标设备的 `adbd`，推送匹配的 scrcpy server，用 `MediaCodec` 解码 H.264 码流，再把触摸和
 按键转换成 scrcpy 控制消息。整个控制端界面基于 Jetpack Compose 构建。
 
+AScrcpy 主要用于查看被控设备的画面。如需更多功能，例如各类遥控、应用控制、文件管理等，
+可使用姐妹项目 [AI Remote Controller](https://github.com/Ernest-su/ai-remote-controller)。
+
 ---
 
 ## 致谢 —— 本项目站在 scrcpy 之上

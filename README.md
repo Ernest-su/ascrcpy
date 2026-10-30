@@ -13,6 +13,10 @@ It connects straight to the target's `adbd`, pushes a matching scrcpy server, de
 stream with `MediaCodec`, and turns touches and key presses into scrcpy control messages. The whole
 controller UI is Jetpack Compose.
 
+AScrcpy primarily focuses on viewing the controlled device's screen. For more features, including
+various remote controls, app control, and file management, use its sister project
+[AI Remote Controller](https://github.com/Ernest-su/ai-remote-controller).
+
 ---
 
 ## Acknowledgements — this project stands on scrcpy
